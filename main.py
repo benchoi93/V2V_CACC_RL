@@ -26,17 +26,17 @@ def parse_args():
     # optional parameters
 
     parser.add_argument('--sample_frequency', default=2000, type=int)
-    parser.add_argument('--render', default=False, type=bool)  # show UI or not
+    parser.add_argument('--render', action="store_true", default=False)  # show UI or not
     parser.add_argument('--log_interval', default=50, type=int)
     parser.add_argument('--load', default=False, type=bool)  # load model
     parser.add_argument('--render_interval', default=100, type=int)  # after render_interval, the env.render() will work
-    parser.add_argument('--exploration_noise', default=0.1, type=float)
+    parser.add_argument('--exploration_noise', default=1, type=float)
     parser.add_argument('--max_episode', default=100000, type=int)  # num of games
     parser.add_argument('--print_log', default=5, type=int)
     parser.add_argument('--update_iteration', default=200, type=int)
     parser.add_argument('--hidden-dim', default=256, type=int)
 
-    parser.add_argument("--adj-amp", default=1, type=float)
+    parser.add_argument("--adj-amp", default=2, type=float)
     parser.add_argument("--speed-reward-coef", default=1, type=float)
     parser.add_argument("--safe-reward-coef", default=1, type=float)
     parser.add_argument("--jerk-reward-coef", default=1, type=float)
@@ -45,6 +45,7 @@ def parse_args():
 
     parser.add_argument("--shared-reward", default=True, action='store_true')
     parser.add_argument("--enable-communication", default=False, action='store_true')
+    parser.add_argument("--episode_length", default=1000, type=int)
 
     parser.add_argument("--num-agents", default=20, type=int)
     parser.add_argument("--init_spacing", default=50, type=float)
@@ -53,8 +54,6 @@ def parse_args():
     parser.add_argument("--acc-bound", default=5, type=float)
     parser.add_argument("--keep-duration", default=100, type=int)
     parser.add_argument("--track-length", default=3000, type=float)
-
-    config = parser.parse_args()
 
     args = parser.parse_args()
 
@@ -95,12 +94,23 @@ def main(args, device, directory):
             print(f"Episode: {i} started - virtual leader info = (keep_duration ={env.virtual_leader.keep_duration} , min_speed = {env.virtual_leader.reach_speed})")
             for t in count():
                 action = agent.select_action(state)
-                action = (action + np.random.normal(0, args.exploration_noise, size=env.action_space.shape[0])).clip(
-                    env.action_space.low, env.action_space.high)
+
+                if args.render and i % args.render_interval == 0:
+                    if t == args.episode_length - 1:
+                        fig = env.render(display=True, save=True)
+                        agent.writer.add_figure('episode', fig, global_step=i)
+                    else:
+                        env.render(display=False)
+
+                else:
+                    action = (action + np.random.normal(0, args.exploration_noise, size=env.action_space.shape[0])).clip(
+                        env.action_space.low, env.action_space.high)
+
+                if i == 0:
+                    action = np.zeros_like(action)
 
                 next_state, reward, done, info = env.step(action)
-                if args.render and i >= args.render_interval:
-                    env.render()
+
                 agent.replay_buffer.push((state, next_state, action, np.array(reward), np.array(done, bool)))
 
                 state = next_state
@@ -110,6 +120,9 @@ def main(args, device, directory):
                 total_reward += np.mean(reward)
             total_step += step+1
             print("Total T:{} Episode: \t{} Total Reward: \t{:0.2f} Avg Reward: \t{:0.2f}".format(total_step, i, total_reward, total_reward/step))
+            agent.writer.add_scalar('episode_reward', total_reward, i)
+            agent.writer.add_scalar('avg_reward', total_reward/step, i)
+
             agent.update()
            # "Total T: %d Episode Num: %d Episode T: %d Reward: %f
 
