@@ -1,3 +1,3 @@
-# Reinforcement Learning for Cooperative Adaptive Cruise Control with V2V Architecture
+# V2V_CACC_RL
 
-1
+Reinforcement Learning for Cooperative Adaptive Cruise Control with V2V Architecture
