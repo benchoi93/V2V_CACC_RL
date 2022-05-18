@@ -92,6 +92,7 @@ def main(args, device, directory):
             total_reward = 0
             step = 0
             state = env.reset()
+            print(f"Episode: {i} started - virtual leader info = (keep_duration ={env.virtual_leader.keep_duration} , min_speed = {env.virtual_leader.reach_speed})")
             for t in count():
                 action = agent.select_action(state)
                 action = (action + np.random.normal(0, args.exploration_noise, size=env.action_space.shape[0])).clip(
