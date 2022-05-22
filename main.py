@@ -1,3 +1,4 @@
+import time
 import argparse
 import torch
 import numpy as np
@@ -9,7 +10,8 @@ from ddpg.DDPG import DDPG
 from cacc_env.multiCACCenv import multiCACC
 from cacc_env.state_type import state_minmax_lookup
 
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cpu")
 
 
 def parse_args():
@@ -32,7 +34,7 @@ def parse_args():
     parser.add_argument('--log_interval', default=50, type=int)
     parser.add_argument('--load', default=False, type=bool)  # load model
     parser.add_argument('--render_interval', default=100, type=int)  # after render_interval, the env.render() will work
-    parser.add_argument('--exploration_noise', default=1, type=float)
+    parser.add_argument('--exploration_noise', default=0.1, type=float)
     parser.add_argument('--max_episode', default=100000, type=int)  # num of games
     parser.add_argument('--print_log', default=5, type=int)
     parser.add_argument('--update_iteration', default=200, type=int)
@@ -69,8 +71,8 @@ def main(args, device, directory):
     max_action = float(env.action_space.high[0])
     hidden_dim = args.hidden_dim
 
-    agent = DDPG(state_dim, action_dim, hidden_dim, 64, 100, max_action, 1, True, False, True, directory, device, args)
-    #(self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold, td, bu, device, directory, args):
+    agent = DDPG(state_dim, action_dim, hidden_dim, 32, 100, max_action, 1, True, False, True, directory, device, args)
+    # (self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold, td, bu, device, directory, args):
     ep_r = 0
     if args.mode == 'test':
         agent.load()
@@ -95,8 +97,10 @@ def main(args, device, directory):
             total_reward = 0
             step = 0
             state = env.reset()
-            print(
-                f"Episode: {i} started - virtual leader info = (keep_duration ={env.virtual_leader.keep_duration} , min_speed = {env.virtual_leader.reach_speed})")
+            print(f"Episode: {i} started - virtual leader info = (keep_duration ={env.virtual_leader.keep_duration} , min_speed = {env.virtual_leader.reach_speed})")
+
+            now = time.time()
+
             for t in count():
                 action = agent.select_action(state)
 
@@ -112,8 +116,8 @@ def main(args, device, directory):
                                                         size=env.action_space.shape[0])).clip(
                         env.action_space.low, env.action_space.high)
 
-                if i == 0:
-                    action = np.zeros_like(action)
+                # if i == 0:
+                #     action = np.zeros_like(action)
 
                 next_state, reward, done, info = env.step(action)
 
@@ -125,13 +129,15 @@ def main(args, device, directory):
                 step += 1
                 total_reward += np.mean(reward)
             total_step += step + 1
-            print("Total T:{} Episode: \t{} Total Reward: \t{:0.2f} Avg Reward: \t{:0.2f}".format(total_step, i,
-                                                                                                  total_reward,
-                                                                                                  total_reward / step))
+            print(f"Total T:{total_step} || Episode: {i} || Total Reward {total_reward} || Avg Reward {total_reward/step}")
+            print(f"Rollout Time : {time.time() - now :.2f}")
             agent.writer.add_scalar('episode_reward', total_reward, i)
             agent.writer.add_scalar('avg_reward', total_reward / step, i)
 
+            now = time.time()
             agent.update()
+            print(f"Update Time : {time.time() - now :.2f}")
+            print("-----------------------------------------\n")
             # "Total T: %d Episode Num: %d Episode T: %d Reward: %f
 
             if i % args.log_interval == 0:

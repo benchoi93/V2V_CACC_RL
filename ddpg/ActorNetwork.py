@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 from .Network import FCRelu
 
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Actor(nn.Module):
@@ -56,7 +56,7 @@ class ActorUpAction(nn.Module):
         self.max_action = max_action
 
     def forward(self, x, *m):
-        m = torch.cat(m, dim=-1)
+        m = torch.cat(m, dim=0)
         xm = torch.cat((x, m), dim=-1)
         xm = torch.tanh(xm)
         action = self.max_action * torch.tanh(self.action_base(xm))
@@ -161,18 +161,26 @@ class ActorGraphPolicy(nn.Module):
                 setattr(self, 'get_{}'.format(i), self.addFunction(i))
 
     def forward(self, state, mode='train'):
+        # input
+        # state : [batch_size, num_limbs, state_dim]
+
         self.clear_buffer()
         if mode == 'inference':
             temp = self.batch_size
             self.batch_size = 1
 
         for i in range(self.num_limbs):
-            self.input_state[i] = state[0][i]
+            # self.input_state[i] = state[0][i]
+            self.input_state[i] = state[:, i, :]
 
         if self.bu:
             # bottom up transmission by recursion
-            for i in range(self.num_limbs):
-                self.bottom_up_transmission(i)
+            # for i in range(self.num_limbs):
+            # self.bottom_up_transmission(i)
+
+            # since we know where is the "child-est" or "parent-est" node, we can call this function once
+            # all other process is done by recursion
+            self.bottom_up_transmission(0)
 
         if self.td:
             # top down transmission by recursion
@@ -203,7 +211,10 @@ class ActorGraphPolicy(nn.Module):
 
     def bottom_up_transmission(self, node):
 
-        if node <= 0:
+        if node < 0:
+            return torch.zeros((self.batch_size, self.msg_dim), requires_grad=True).to(device)
+
+        if node > len(self.msg_up)-1:
             return torch.zeros((self.batch_size, self.msg_dim), requires_grad=True).to(device)
 
         if self.msg_up[node] is None:
@@ -213,7 +224,8 @@ class ActorGraphPolicy(nn.Module):
 
         state = self.input_state[node]
 
-        msg_in = torch.zeros((self.msg_dim, 1), requires_grad=True).to(device)
+        msg_in = [self.bottom_up_transmission(node + 1)]
+        # msg_in = torch.zeros((self.msg_dim, 1), requires_grad=True).to(device)
 
         if self.td:
             self.msg_up[node] = self.sNet[node](state, *msg_in)

@@ -53,12 +53,15 @@ class CriticUpAction(nn.Module):
         self.fc1 = nn.Linear(state_dim + action_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim + msg_dim * max_children, hidden_dim)
         self.fc3 = nn.Linear(hidden_dim, msg_dim)
+
         self.baseQ = FCRelu(state_dim + action_dim + msg_dim * max_children, 1, hidden_dim)
 
     def forward(self, x, u, *m):
         m = torch.cat(m, dim=-1)
+        # u = u.unsqueeze(1)
         xum = torch.cat([x, u, m], dim=-1)
-        x = self.baseQ(xum)
+        x_out = self.baseQ(xum)
+
         xu = torch.cat([x, u], dim=-1)
         xu = self.fc1(xu)
         xu = F.normalize(xu, dim=-1)
@@ -70,7 +73,7 @@ class CriticUpAction(nn.Module):
         xum = F.normalize(xum, dim=-1)
         msg_up = xum
 
-        return msg_up, x
+        return msg_up, x_out
 
 
 class CriticDownAction(nn.Module):
@@ -147,17 +150,24 @@ class CriticGraphPolicy(nn.Module):
             self.critic = nn.ModuleList([Critic(state_dim, action_dim, hidden_dim)] * self.num_limbs).to(device)
 
     def forward(self, state, action, mode='train'):
+        # input
+        # state : [batch_size, num_limbs, state_dim]
+        # action : [batch_size, num_limbs, action_dim]
+
         self.clear_buffer()
 
         for i in range(self.num_limbs):
-            self.input_state[i] = state[:, i * self.state_dim:(i + 1) * self.state_dim]
-            self.input_action[i] = action[i]
-            self.input_action[i] = torch.unsqueeze(self.input_action[i], -1)
+            self.input_state[i] = state[:, i, :]
+            self.input_action[i] = action[:, i]
+            # self.input_action[i] = torch.unsqueeze(self.input_action[i], -1)
 
         if self.bu:
             # bottom up transmission by recursion
-            for i in range(self.num_limbs):
-                self.bottom_up_transmission(i)
+            # for i in range(self.num_limbs):
+            #     self.bottom_up_transmission(i)
+            # since we know where is the "child-est" or "parent-est" node, we can call this function once
+            # all other process is done by recursion
+            self.bottom_up_transmission(0)
 
         if self.td:
             # top down transmission by recursion
@@ -168,14 +178,16 @@ class CriticGraphPolicy(nn.Module):
             for i in range(self.num_limbs):
                 self.x[i] = self.critic[i](self.input_state[i], self.input_action[i])
 
+        self.x = torch.stack(self.x, dim=1)  # (batch_size, num_limbs, 1)
 
-        self.x = torch.stack(self.x, dim=-1)  # (bs,num_limbs,1)
-
-        return torch.sum(self.x, dim=-1)
+        return self.x
 
     def bottom_up_transmission(self, node):
 
-        if node <= 0:
+        if node < 0:
+            return torch.zeros((self.batch_size, self.msg_dim), requires_grad=True).to(device)
+
+        if node > len(self.msg_up) - 1:
             return torch.zeros((self.batch_size, self.msg_dim), requires_grad=True).to(device)
 
         if self.msg_up[node] is not None:
@@ -184,27 +196,12 @@ class CriticGraphPolicy(nn.Module):
         state = self.input_state[node]
         action = self.input_action[node]
 
-        # children = [i for i, x in enumerate(self.parents) if x == node]
-        # assert (self.max_children - len(children)) >= 0
-        # children += [-1] * (self.max_children - len(children))
-        # msg_in = [None] * self.max_children
-        # for i in range(self.max_children):
-        #     msg_in[i] = self.bottom_up_transmission(children[i])
-
-        # if not self.disable_fold:
-        #     if self.td:
-        #         self.msg_up[node] = self.fold.add('sNet' + str(0).zfill(3), state, action, *msg_in)
-        #     else:
-        #         self.msg_up[node], self.x = self.fold.add('sNet' + str(0).zfill(3), state, action,
-        #                                                   *msg_in).split(3)
-        # else:
-
-        msg_in = torch.zeros(self.msg_dim, 1)
+        msg_in = [self.bottom_up_transmission(node + 1)]
 
         if self.td:
             self.msg_up[node] = self.sNet[node](state, action, *msg_in)
         else:
-            self.msg_up[node], self.x = self.sNet[node](state, action, *msg_in)
+            self.msg_up[node], self.x[node] = self.sNet[node](state, action, *msg_in)
 
         return self.msg_up[node]
 
