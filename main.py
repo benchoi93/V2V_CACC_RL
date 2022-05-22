@@ -9,11 +9,13 @@ from ddpg.DDPG import DDPG
 from cacc_env.multiCACCenv import multiCACC
 from cacc_env.state_type import state_minmax_lookup
 
+device = torch.device("cpu")
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', default='train', type=str)  # mode = 'train' or 'test'
-    parser.add_argument('--tau',  default=0.005, type=float)  # target smoothing coefficient
+    parser.add_argument('--tau', default=0.005, type=float)  # target smoothing coefficient
     parser.add_argument('--target_update_interval', default=1, type=int)
     parser.add_argument('--test_iteration', default=10, type=int)
 
@@ -34,7 +36,8 @@ def parse_args():
     parser.add_argument('--max_episode', default=100000, type=int)  # num of games
     parser.add_argument('--print_log', default=5, type=int)
     parser.add_argument('--update_iteration', default=200, type=int)
-    parser.add_argument('--hidden-dim', default=256, type=int)
+    parser.add_argument('--hidden-dim', default=64, type=int)
+    parser.add_argument('--max_children', default=1, type=int)
 
     parser.add_argument("--adj-amp", default=2, type=float)
     parser.add_argument("--speed-reward-coef", default=1, type=float)
@@ -50,7 +53,7 @@ def parse_args():
     parser.add_argument("--num-agents", default=20, type=int)
     parser.add_argument("--init_spacing", default=50, type=float)
     parser.add_argument("--init_speed", default=30, type=float)
-    parser.add_argument("--max-speed", default=120/3.6, type=float)
+    parser.add_argument("--max-speed", default=120 / 3.6, type=float)
     parser.add_argument("--acc-bound", default=5, type=float)
     parser.add_argument("--keep-duration", default=100, type=int)
     parser.add_argument("--track-length", default=3000, type=float)
@@ -66,7 +69,8 @@ def main(args, device, directory):
     max_action = float(env.action_space.high[0])
     hidden_dim = args.hidden_dim
 
-    agent = DDPG(state_dim, action_dim, hidden_dim, max_action, device, directory, args)
+    agent = DDPG(state_dim, action_dim, hidden_dim, 64, 100, max_action, 1, True, False, True, directory, device, args)
+    #(self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold, td, bu, device, directory, args):
     ep_r = 0
     if args.mode == 'test':
         agent.load()
@@ -91,7 +95,8 @@ def main(args, device, directory):
             total_reward = 0
             step = 0
             state = env.reset()
-            print(f"Episode: {i} started - virtual leader info = (keep_duration ={env.virtual_leader.keep_duration} , min_speed = {env.virtual_leader.reach_speed})")
+            print(
+                f"Episode: {i} started - virtual leader info = (keep_duration ={env.virtual_leader.keep_duration} , min_speed = {env.virtual_leader.reach_speed})")
             for t in count():
                 action = agent.select_action(state)
 
@@ -103,7 +108,8 @@ def main(args, device, directory):
                         env.render(display=False)
 
                 else:
-                    action = (action + np.random.normal(0, args.exploration_noise, size=env.action_space.shape[0])).clip(
+                    action = (action + np.random.normal(0, args.exploration_noise,
+                                                        size=env.action_space.shape[0])).clip(
                         env.action_space.low, env.action_space.high)
 
                 if i == 0:
@@ -118,13 +124,15 @@ def main(args, device, directory):
                     break
                 step += 1
                 total_reward += np.mean(reward)
-            total_step += step+1
-            print("Total T:{} Episode: \t{} Total Reward: \t{:0.2f} Avg Reward: \t{:0.2f}".format(total_step, i, total_reward, total_reward/step))
+            total_step += step + 1
+            print("Total T:{} Episode: \t{} Total Reward: \t{:0.2f} Avg Reward: \t{:0.2f}".format(total_step, i,
+                                                                                                  total_reward,
+                                                                                                  total_reward / step))
             agent.writer.add_scalar('episode_reward', total_reward, i)
-            agent.writer.add_scalar('avg_reward', total_reward/step, i)
+            agent.writer.add_scalar('avg_reward', total_reward / step, i)
 
             agent.update()
-           # "Total T: %d Episode Num: %d Episode T: %d Reward: %f
+            # "Total T: %d Episode Num: %d Episode T: %d Reward: %f
 
             if i % args.log_interval == 0:
                 agent.save()
@@ -135,7 +143,6 @@ def main(args, device, directory):
 if __name__ == "__main__":
     args = parse_args()
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     script_name = os.path.basename(__file__)
 
     kwargs = {"num_agents": args.num_agents,
@@ -178,6 +185,6 @@ if __name__ == "__main__":
             curr_run = 'run1'
         else:
             curr_run = 'run%i' % (max(exst_run_nums) + 1)
-    directory = model_dir/curr_run / 'logs'
+    directory = model_dir / curr_run / 'logs'
 
     main(args, device, directory)
