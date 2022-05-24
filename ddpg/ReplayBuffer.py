@@ -20,21 +20,22 @@ class Replay_buffer():
         self.cnt = 0
 
     def push(self, data):
-        if len(self.X_storage) == self.max_size:
-            self.X_storage[int(self.ptr)] = data[0]
-            self.Y_storage[int(self.ptr)] = data[1]
-            self.U_storage[int(self.ptr)] = data[2]
-            self.R_storage[int(self.ptr)] = data[3]
-            self.D_storage[int(self.ptr)] = data[4]
+        for i in range(data[0].shape[0]):
+            if len(self.X_storage) == self.max_size:
+                self.X_storage[int(self.ptr)] = data[0][i]
+                self.Y_storage[int(self.ptr)] = data[1][i]
+                self.U_storage[int(self.ptr)] = data[2][i]
+                self.R_storage[int(self.ptr)] = data[3][i]
+                self.D_storage[int(self.ptr)] = data[4][i]
 
-            self.ptr = (self.ptr + 1) % self.max_size
-            self.cnt += 1
-        else:
-            self.X_storage.append(data[0])
-            self.Y_storage.append(data[1])
-            self.U_storage.append(data[2])
-            self.R_storage.append(data[3])
-            self.D_storage.append(data[4])
+                self.ptr = (self.ptr + 1) % self.max_size
+                self.cnt += 1
+            else:
+                self.X_storage.append(data[0][i])
+                self.Y_storage.append(data[1][i])
+                self.U_storage.append(data[2][i])
+                self.R_storage.append(data[3][i])
+                self.D_storage.append(data[4][i])
 
     def sample(self, batch_size, norm_rews=True):
         ind = np.random.randint(0, len(self.X_storage), size=batch_size)
