@@ -34,7 +34,7 @@ class multiCACC(gym.Env):
                  track_length=2000.0,
                  max_speed=120.0,
                  #  state_type=["speed", "acceleration", "spacing", "relative_speed", "message"],
-                 state_type=["speed", "spacing", "relative_speed"],
+                 state_type=["speed", "spacing", "relative_speed", "acceleration"],
                  #  state_mins=np.array([0, 0, -5, 0, -120/3.6]),
                  #  state_maxs=np.array([1000, 120/3.6, 5, 1000, 120/3.6]),
                  shared_reward=False,
