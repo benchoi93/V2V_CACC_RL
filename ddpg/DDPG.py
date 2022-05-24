@@ -27,12 +27,12 @@ class DDPG(object):
         self.actor = ActorGraphPolicy(state_dim, action_dim, hidden_dim,
                                       msg_dim, batch_size,
                                       max_action, max_children,
-                                      disable_fold, td, bu).to(device)
+                                      disable_fold, td, bu, args.num_processes).to(device)
 
         self.actor_target = ActorGraphPolicy(state_dim, action_dim, hidden_dim,
                                              msg_dim, batch_size,
                                              max_action, max_children,
-                                             disable_fold, td, bu).to(device)
+                                             disable_fold, td, bu, args.num_processes).to(device)
 
         self.critic = CriticGraphPolicy(state_dim, action_dim, hidden_dim,
                                         msg_dim, batch_size,
@@ -67,7 +67,8 @@ class DDPG(object):
     def select_action(self, state):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
         state = state.view(-1, self.args.num_agents, self.state_dim)
-        return self.actor(state, mode="inference").cpu().data.numpy().flatten()
+        action = self.actor(state, mode="inference").cpu().data.numpy()
+        return action
 
     def update(self):
         self._cnt += 1

@@ -98,7 +98,7 @@ class ActorGraphPolicy(nn.Module):
     """a weight-sharing dynamic graph policy that changes its structure based on different morphologies and passes messages between nodes"""
 
     def __init__(self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold,
-                 td, bu):
+                 td, bu, num_processes):
         super(ActorGraphPolicy, self).__init__()
         self.num_limbs = 20
         self.msg_down = [None] * self.num_limbs
@@ -113,6 +113,7 @@ class ActorGraphPolicy(nn.Module):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.hidden_dim = hidden_dim
+        self.num_processes = num_processes
 
         assert self.action_dim == 1
         self.td = td
@@ -167,7 +168,7 @@ class ActorGraphPolicy(nn.Module):
         self.clear_buffer()
         if mode == 'inference':
             temp = self.batch_size
-            self.batch_size = 1
+            self.batch_size = self.num_processes
 
         for i in range(self.num_limbs):
             # self.input_state[i] = state[0][i]

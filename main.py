@@ -9,6 +9,7 @@ from pathlib import Path
 from ddpg.DDPG import DDPG
 from cacc_env.multiCACCenv import multiCACC
 from cacc_env.state_type import state_minmax_lookup
+from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
@@ -21,7 +22,7 @@ def parse_args():
     parser.add_argument('--target_update_interval', default=1, type=int)
     parser.add_argument('--test_iteration', default=10, type=int)
 
-    parser.add_argument('--learning_rate', default=1e-4, type=float)
+    parser.add_argument('--learning_rate', default=1e-3, type=float)
     parser.add_argument('--gamma', default=0.99, type=int)  # discounted factor
     parser.add_argument('--capacity', default=1000000, type=int)  # replay buffer size
     parser.add_argument('--batch_size', default=100, type=int)  # mini batch size
@@ -59,6 +60,7 @@ def parse_args():
     parser.add_argument("--acc-bound", default=5, type=float)
     parser.add_argument("--keep-duration", default=100, type=int)
     parser.add_argument("--track-length", default=3000, type=float)
+    parser.add_argument("--num_processes", default=4, type=int)
 
     args = parser.parse_args()
 
@@ -71,7 +73,7 @@ def main(args, device, directory):
     max_action = float(env.action_space.high[0])
     hidden_dim = args.hidden_dim
 
-    agent = DDPG(state_dim, action_dim, hidden_dim, 32, 100, max_action, 1, True, False, True, directory, device, args)
+    agent = DDPG(state_dim, action_dim, hidden_dim, 32, 100, max_action, 1, True, False, True, directory, device, args, )
     # (self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold, td, bu, device, directory, args):
     ep_r = 0
     if args.mode == 'test':
@@ -94,20 +96,29 @@ def main(args, device, directory):
             agent.load()
         total_step = 0
         for i in range(args.max_episode):
-            total_reward = 0
+            # total_reward = 0
             step = 0
             state = env.reset()
-            print(f"Episode: {i} started - virtual leader info = (keep_duration ={env.virtual_leader.keep_duration} , min_speed = {env.virtual_leader.reach_speed})")
+
+            envs = env.get_envs()
+
+            for k in range(args.num_processes):
+                print(f"Episode: {i} Process {k} started - virtual leader info = (keep_duration ={envs[k][0].virtual_leader.keep_duration} , min_speed = {envs[k][0].virtual_leader.reach_speed})")
 
             now = time.time()
 
+            done_list = [False for i in range(args.num_processes)]
+            total_reward_list = [0 for i in range(args.num_processes)]
             for t in count():
                 action = agent.select_action(state)
 
                 if args.render and i % args.render_interval == 0:
+                    # for k in range(args.num_processes):
                     if t == args.episode_length - 1:
-                        fig = env.render(display=True, save=True)
-                        agent.writer.add_figure('episode', fig, global_step=i)
+                        figs = env.render(display=True, save=True)
+                        for k in range(len(figs)):
+                            fig = figs[k][0]
+                            agent.writer.add_figure('episode', fig, global_step=i*args.num_processes + k)
                     else:
                         env.render(display=False)
 
@@ -124,15 +135,22 @@ def main(args, device, directory):
                 agent.replay_buffer.push((state, next_state, action, np.array(reward), np.array(done, bool)))
 
                 state = next_state
-                if all(done):
+
+                done_list = [done_list[i] or done.all(1)[i] for i in range(args.num_processes)]
+
+                if all(done_list):
                     break
                 step += 1
-                total_reward += np.mean(reward)
-            total_step += step + 1
-            print(f"Total T:{total_step} || Episode: {i} || Total Reward {total_reward} || Avg Reward {total_reward/step}")
+
+                sum_reward = np.mean(reward, 1)
+                total_reward_list = [x+sum_reward[i] for i, x in enumerate(total_reward_list)]
+
+            for k in range(args.num_processes):
+                total_step += (step + 1)
+                print(f"Total T:{total_step} || ReplayBuffer {len(agent.replay_buffer.X_storage)} || Episode: {i} || Total Reward {total_reward_list[k]} || Avg Reward {total_reward_list[k]/step}")
+                agent.writer.add_scalar('episode_reward', total_reward_list[k], i * args.num_processes + k)
+                agent.writer.add_scalar('avg_reward', total_reward_list[k] / step, i * args.num_processes + k)
             print(f"Rollout Time : {time.time() - now :.2f}")
-            agent.writer.add_scalar('episode_reward', total_reward, i)
-            agent.writer.add_scalar('avg_reward', total_reward / step, i)
 
             now = time.time()
             agent.update()
@@ -171,7 +189,16 @@ if __name__ == "__main__":
               #   "enable_communication": True,
               }
 
-    env = multiCACC(**kwargs)
+    # env = multiCACC(**kwargs)
+
+    def make_env(kwargs):
+        def _init():
+            env = multiCACC(**kwargs)
+            return env
+        return _init
+
+    env = [make_env(kwargs) for i in range(args.num_processes)]
+    env = SubprocVecEnv(env)
 
     if args.seed:
         env.seed(args.random_seed)
