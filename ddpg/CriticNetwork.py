@@ -88,13 +88,14 @@ class CriticDownAction(nn.Module):
 
     def forward(self, x, u, m):
         xum = torch.cat([x, u, m], dim=-1)
-        x = self.baseQ(xum)
+        x_out = self.baseQ(xum)
+
         xm = torch.cat([x, m], dim=-1)
         xm = torch.tanh(xm)
         msg_down = self.msg_base(xm)
         msg_down = F.normalize(msg_down, dim=-1)
 
-        return x, msg_down
+        return x_out, msg_down
 
 
 class CriticGraphPolicy(nn.Module):
@@ -170,9 +171,7 @@ class CriticGraphPolicy(nn.Module):
             self.bottom_up_transmission(0)
 
         if self.td:
-            # top down transmission by recursion
-            for i in range(self.num_limbs):
-                self.top_down_transmission(i)
+            self.top_down_transmission(len(self.msg_down) - 1)
 
         if not self.bu and not self.td:
             for i in range(self.num_limbs):
@@ -208,12 +207,15 @@ class CriticGraphPolicy(nn.Module):
     def top_down_transmission(self, node):
 
         if node < 0:
-            if not self.disable_fold:
-                return self.zeroFold_td
-            else:
-                return torch.zeros((self.batch_size, self.msg_dim * self.max_children), requires_grad=True).to(device)
+            return torch.zeros((self.batch_size, self.msg_dim * self.max_children), requires_grad=True).to(device)
 
-        elif self.msg_down[node] is not None:
+        if node > len(self.msg_down) - 1:
+            return torch.zeros((self.batch_size, self.msg_dim * self.max_children), requires_grad=True).to(device)
+
+        # if self.msg_down[node] is None:
+        #     return torch.zeros((self.batch_size, self.msg_dim * self.max_children), requires_grad=True).to(device)
+
+        if self.msg_down[node] is not None:
             return self.msg_down[node]
 
         # in both-way message-passing, each node takes in its passed-up message as 'state'
@@ -223,26 +225,23 @@ class CriticGraphPolicy(nn.Module):
             state = self.input_state[node]
 
         action = self.input_action[node]
-        parent_msg = self.top_down_transmission(self.parents[node])
+        # parent_msg = self.top_down_transmission(self.parents[node])
 
         # find self children index (first child of parent, second child of parent, etc)
         # by finding the number of previous occurences of parent index in the list
-        self_children_idx = self.parents[:node].count(self.parents[node])
+        # self_children_idx = self.parents[:node].count(self.parents[node])
 
         # if the structure is flipped, flip message order at the root
-        if self.parents[0] == -2 and node == 1:
-            self_children_idx = (self.max_children - 1) - self_children_idx
+        # if self.parents[0] == -2 and node == 1:
+        #     self_children_idx = (self.max_children - 1) - self_children_idx
+        #
+        # if not self.disable_fold:
+        #     msg_in = self.fold.add('get_{}'.format(self_children_idx), parent_msg)
+        # else:
+        #     msg_in = self.msg_slice(parent_msg, self_children_idx)
+        msg_in = [self.top_down_transmission(node - 1)]
 
-        if not self.disable_fold:
-            msg_in = self.fold.add('get_{}'.format(self_children_idx), parent_msg)
-        else:
-            msg_in = self.msg_slice(parent_msg, self_children_idx)
-
-        if not self.disable_fold:
-            self.x[node], self.msg_down[node] = self.fold.add('critic' + str(0).zfill(3), state, action,
-                                                              msg_in).split(3)
-        else:
-            self.x[node], self.msg_down[node] = self.critic[node](state, action, msg_in)
+        self.x[node], self.msg_down[node] = self.critic[node](state, action, *msg_in)
 
         return self.msg_down[node]
 
