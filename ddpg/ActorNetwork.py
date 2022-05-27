@@ -185,8 +185,9 @@ class ActorGraphPolicy(nn.Module):
 
         if self.td:
             # top down transmission by recursion
-            for i in range(self.num_limbs):
-                self.top_down_transmission(i)
+            # for i in range(self.num_limbs):
+            #     self.top_down_transmission(i)
+            self.top_down_transmission(len(self.msg_down) - 1)
 
         if not self.bu and not self.td:
             for i in range(self.num_limbs):
@@ -236,13 +237,21 @@ class ActorGraphPolicy(nn.Module):
         return self.msg_up[node]
 
     def top_down_transmission(self, node):
-        if node < 0:
-            if not self.disable_fold:
-                return self.zeroFold_td
-            else:
-                return torch.zeros((self.batch_size, self.msg_dim * self.max_children), requires_grad=True)
+        # if node < 0:
+        #     if not self.disable_fold:
+        #         return self.zeroFold_td
+        #     else:
+        #         return torch.zeros((self.batch_size, self.msg_dim * self.max_children), requires_grad=True)
 
-        elif self.msg_down[node] is not None:
+        if node < 0:
+            return torch.zeros((self.batch_size, self.msg_dim * self.max_children), requires_grad=True).to(device)
+
+        if node > len(self.msg_down)-1:
+            return torch.zeros((self.batch_size, self.msg_dim * self.max_children), requires_grad=True).to(device)
+
+        if self.msg_down[node] is None:
+            self.msg_down[node] = torch.zeros((self.batch_size, self.msg_dim * self.max_children), requires_grad=True).to(device)
+        else:
             return self.msg_down[node]
 
         # in both-way message-passing, each node takes in its passed-up message as 'state'
@@ -250,25 +259,24 @@ class ActorGraphPolicy(nn.Module):
             state = self.msg_up[node]
         else:
             state = self.input_state[node]
-        parent_msg = self.top_down_transmission(self.parents[node])
+        # parent_msg = self.top_down_transmission(self.parents[node])
 
         # find self children index (first child of parent, second child of parent, etc)
         # by finding the number of previous occurences of parent index in the list
-        self_children_idx = self.parents[:node].count(self.parents[node])
+        # self_children_idx = self.parents[:node].count(self.parents[node])
 
         # if the structure is flipped, flip message order at the root
-        if self.parents[0] == -2 and node == 1:
-            self_children_idx = (self.max_children - 1) - self_children_idx
+        # if self.parents[0] == -2 and node == 1:
+        #     self_children_idx = (self.max_children - 1) - self_children_idx
+        #
+        # if not self.disable_fold:
+        #     msg_in = self.fold.add('get_{}'.format(self_children_idx), parent_msg)
+        # else:
+        #     msg_in = self.msg_slice(parent_msg, self_children_idx)
 
-        if not self.disable_fold:
-            msg_in = self.fold.add('get_{}'.format(self_children_idx), parent_msg)
-        else:
-            msg_in = self.msg_slice(parent_msg, self_children_idx)
+        msg_in = [self.top_down_transmission(node - 1)]
 
-        if not self.disable_fold:
-            self.action[node], self.msg_down[node] = self.fold.add('actor' + str(0).zfill(3), state, *msg_in).split(2)
-        else:
-            self.action[node], self.msg_down[node] = self.actor[node](state, *msg_in)
+        self.action[node], self.msg_down[node] = self.actor[node](state, *msg_in)
 
         return self.msg_down[node]
 
