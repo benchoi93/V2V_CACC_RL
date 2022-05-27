@@ -25,7 +25,7 @@ def parse_args():
     parser.add_argument('--learning_rate', default=1e-3, type=float)
     parser.add_argument('--gamma', default=0.99, type=int)  # discounted factor
     parser.add_argument('--capacity', default=1000000, type=int)  # replay buffer size
-    parser.add_argument('--batch_size', default=100, type=int)  # mini batch size
+    parser.add_argument('--batch_size', default=512, type=int)  # mini batch size
     parser.add_argument('--seed', default=False, type=bool)
     parser.add_argument('--random_seed', default=9527, type=int)
     # optional parameters
@@ -41,6 +41,7 @@ def parse_args():
     parser.add_argument('--update_iteration', default=200, type=int)
     parser.add_argument('--hidden-dim', default=64, type=int)
     parser.add_argument('--max_children', default=1, type=int)
+    parser.add_argument('--msg_dim', default=32, type=int)
 
     parser.add_argument("--adj-amp", default=2, type=float)
     parser.add_argument("--speed-reward-coef", default=1, type=float)
@@ -73,7 +74,19 @@ def main(args, device, directory):
     max_action = float(env.action_space.high[0])
     hidden_dim = args.hidden_dim
 
-    agent = DDPG(state_dim, action_dim, hidden_dim, 32, 100, max_action, 1, True, False, True, directory, device, args, )
+    agent = DDPG(state_dim=state_dim,
+                 action_dim=action_dim,
+                 hidden_dim=hidden_dim,
+                 msg_dim=args.msg_dim,
+                 batch_size=args.batch_size,
+                 max_action=max_action,
+                 max_children=1,
+                 disable_fold=True,
+                 td=True,
+                 bu=True,
+                 directory=directory,
+                 device=device,
+                 args=args)
     # (self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold, td, bu, device, directory, args):
     ep_r = 0
     if args.mode == 'test':
