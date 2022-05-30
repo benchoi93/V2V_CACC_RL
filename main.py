@@ -68,7 +68,7 @@ def parse_args():
     parser.add_argument("--td", default=False, action="store_true")
     parser.add_argument("--bu", default=False, action="store_true")
 
-    parser.add_argument("--model", option=["TD3", "DDPG"], default="TD3")
+    parser.add_argument("--model", choices=["TD3", "DDPG"], default="TD3")
 
     args = parser.parse_args()
 
