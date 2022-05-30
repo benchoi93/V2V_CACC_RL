@@ -61,7 +61,10 @@ def parse_args():
     parser.add_argument("--acc-bound", default=5, type=float)
     parser.add_argument("--keep-duration", default=100, type=int)
     parser.add_argument("--track-length", default=3000, type=float)
-    parser.add_argument("--num_processes", default=4, type=int)
+    parser.add_argument("--num_processes", default=2, type=int)
+
+    parser.add_argument("--td", default=False, action="store_true")
+    parser.add_argument("--bu", default=False, action="store_true")
 
     args = parser.parse_args()
 
@@ -82,8 +85,8 @@ def main(args, device, directory):
                  max_action=max_action,
                  max_children=1,
                  disable_fold=True,
-                 td=True,
-                 bu=True,
+                 td=args.td,
+                 bu=args.bu,
                  directory=directory,
                  device=device,
                  args=args)

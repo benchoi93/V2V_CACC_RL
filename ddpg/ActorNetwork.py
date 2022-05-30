@@ -192,8 +192,8 @@ class ActorGraphPolicy(nn.Module):
         if not self.bu and not self.td:
             for i in range(self.num_limbs):
                 if self.action[i] is None:
-                    self.action[i] = torch.zeros(1)
-                else:
+                    #     self.action[i] = torch.zeros(1)
+                    # else:
                     self.action[i] = self.actor[i](self.input_state[i])
 
         for i in range(self.num_limbs):
