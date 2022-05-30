@@ -83,8 +83,8 @@ class Vehicle():
         if self.v + acc * self.dt < 0:
             acc = -self.v / self.dt
 
-        # if self.v + acc * self.dt > self.max_speed:
-        #     acc = (self.max_speed - self.v) / self.dt
+        if self.v + acc * self.dt > self.max_speed:
+            acc = (self.max_speed - self.v) / self.dt
 
         self._jerk = (acc - self._a) / self.dt
         self._a = acc
@@ -256,3 +256,6 @@ class Virtual_Leader(Vehicle):
 
         self.keep_duration = np.random.randint(0, self.keep_duration_max)
         self.reach_speed = np.random.randint(0, self.reach_speed_max)
+
+        self.keep_duration = 100
+        self.reach_speed = 0

@@ -224,6 +224,15 @@ class multiCACC(gym.Env):
     def get_done(self, i) -> bool:
         return (self.agents[i].x > self.track_length) and (self._step_count > self.max_steps)
 
+    def clip_acc(self, acc):
+        # if acc < self.acc_bound[0]:
+        #     return self.acc_bound[0]
+        # el
+        if acc <= self.acc_bound[1]:
+            return acc
+        else:
+            return self.acc_bound[1]
+
     def step(self, action_n: npt.NDArray[np.float32]) -> Tuple[List[npt.NDArray[np.float32]], List[float], List[bool], Dict[Any, Any]]:
         # assert action_n.shape[0] == self.num_agents
 
@@ -245,6 +254,8 @@ class multiCACC(gym.Env):
             adj = float(self.action_normalizer.denormalize(action_n[i]))
 
             acc = idm_acc + adj
+            acc = self.clip_acc(acc)
+
             self.agents[i].action_record = adj
 
             self.agents[i].update(acc)
