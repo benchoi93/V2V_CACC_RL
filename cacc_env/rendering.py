@@ -105,7 +105,7 @@ def figure_to_image(mlp_fig, rel_anchor_x=0.5, rel_anchor_y=0.5):
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     canvas = FigureCanvasAgg(mlp_fig)
     pic_data = io.BytesIO()
-    canvas.print_raw(pic_data, dpi=mlp_fig.dpi)
+    canvas.print_raw(pic_data)
     width, height = mlp_fig.get_size_inches() * mlp_fig.dpi
     width = int(width)
     height = int(height)

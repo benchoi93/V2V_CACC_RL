@@ -54,6 +54,7 @@ class multiCACC(gym.Env):
         self.acc_bound = acc_bound
         self.track_length = track_length
         self.max_speed = max_speed
+        self.max_steps = 1000
 
         self.state_type = state_type
         self.state_minmax_lookup = state_minmax_lookup
@@ -221,7 +222,7 @@ class multiCACC(gym.Env):
         return 0
 
     def get_done(self, i) -> bool:
-        return self.agents[i].x > self.track_length
+        return (self.agents[i].x > self.track_length) and (self._step_count > self.max_steps)
 
     def step(self, action_n: npt.NDArray[np.float32]) -> Tuple[List[npt.NDArray[np.float32]], List[float], List[bool], Dict[Any, Any]]:
         # assert action_n.shape[0] == self.num_agents

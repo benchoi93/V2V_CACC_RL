@@ -7,6 +7,7 @@ import os
 from itertools import count
 from pathlib import Path
 from ddpg.DDPG import DDPG
+from ddpg.TD3 import TD3
 from cacc_env.multiCACCenv import multiCACC
 from cacc_env.state_type import state_minmax_lookup
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
@@ -22,7 +23,7 @@ def parse_args():
     parser.add_argument('--target_update_interval', default=1, type=int)
     parser.add_argument('--test_iteration', default=10, type=int)
 
-    parser.add_argument('--learning_rate', default=1e-3, type=float)
+    parser.add_argument('--learning_rate', default=1e-1, type=float)
     parser.add_argument('--gamma', default=0.99, type=int)  # discounted factor
     parser.add_argument('--capacity', default=1000000, type=int)  # replay buffer size
     parser.add_argument('--batch_size', default=512, type=int)  # mini batch size
@@ -62,9 +63,12 @@ def parse_args():
     parser.add_argument("--keep-duration", default=100, type=int)
     parser.add_argument("--track-length", default=3000, type=float)
     parser.add_argument("--num_processes", default=2, type=int)
+    parser.add_argument("--max_steps", default=1000, type=int)
 
     parser.add_argument("--td", default=False, action="store_true")
     parser.add_argument("--bu", default=False, action="store_true")
+
+    parser.add_argument("--model", option=["TD3", "DDPG"], default="TD3")
 
     args = parser.parse_args()
 
@@ -77,19 +81,26 @@ def main(args, device, directory):
     max_action = float(env.action_space.high[0])
     hidden_dim = args.hidden_dim
 
-    agent = DDPG(state_dim=state_dim,
-                 action_dim=action_dim,
-                 hidden_dim=hidden_dim,
-                 msg_dim=args.msg_dim,
-                 batch_size=args.batch_size,
-                 max_action=max_action,
-                 max_children=1,
-                 disable_fold=True,
-                 td=args.td,
-                 bu=args.bu,
-                 directory=directory,
-                 device=device,
-                 args=args)
+    if args.model == "TD3":
+        model = TD3
+    elif args.model == "DDPG":
+        model = DDPG
+    else:
+        raise NotImplementedError
+
+    agent = model(state_dim=state_dim,
+                  action_dim=action_dim,
+                  hidden_dim=hidden_dim,
+                  msg_dim=args.msg_dim,
+                  batch_size=args.batch_size,
+                  max_action=max_action,
+                  max_children=1,
+                  disable_fold=True,
+                  td=args.td,
+                  bu=args.bu,
+                  directory=directory,
+                  device=device,
+                  args=args)
     # (self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold, td, bu, device, directory, args):
     ep_r = 0
     if args.mode == 'test':
@@ -154,7 +165,9 @@ def main(args, device, directory):
 
                 done_list = [done_list[i] or done.all(1)[i] for i in range(args.num_processes)]
 
-                if all(done_list):
+                # if all(done_list):
+                # break
+                if t >= args.max_steps:
                     break
                 step += 1
 
