@@ -38,15 +38,14 @@ class ActorUp(nn.Module):
 
     def __init__(self, state_dim, msg_dim, hidden_dim, max_children, bidirectional=True):
         super(ActorUp, self).__init__()
-        self.fc1 = nn.Linear(state_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim + msg_dim, hidden_dim)
         self.fc3 = nn.Linear(hidden_dim, msg_dim)
 
         self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
         if bidirectional:
-            self.base = FCRelu(hidden_dim*2, hidden_dim)
+            self.fc1 = nn.Linear(hidden_dim*2, hidden_dim)
         else:
-            self.base = FCRelu(hidden_dim, hidden_dim)
+            self.fc1 = nn.Linear(hidden_dim, hidden_dim)
 
         self.state_dim = state_dim
         self.hidden_dim = hidden_dim
@@ -74,17 +73,21 @@ class ActorUpAction(nn.Module):
 
     def __init__(self, state_dim, msg_dim, max_children, action_dim, hidden_dim, max_action, bidirectional=True):
         super(ActorUpAction, self).__init__()
-        self.fc1 = nn.Linear(state_dim, 64)
-        self.fc2 = nn.Linear(64 + msg_dim * max_children, 64)
-        self.fc3 = nn.Linear(64, msg_dim)
+
         # self.action_base = FCRelu(state_dim + msg_dim * max_children, action_dim, hidden_dim, )
         self.max_action = max_action
 
         self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
         if bidirectional:
-            self.action_base = FCRelu(hidden_dim*2, action_dim, hidden_dim)
+            self.action_base = FCRelu(hidden_dim*2 + msg_dim, action_dim, hidden_dim)
+            self.fc1 = nn.Linear(hidden_dim*2, hidden_dim)
+
         else:
-            self.action_base = FCRelu(hidden_dim, action_dim, hidden_dim)
+            self.action_base = FCRelu(hidden_dim + msg_dim, action_dim, hidden_dim)
+            self.fc1 = nn.Linear(hidden_dim, hidden_dim)
+
+        self.fc2 = nn.Linear(hidden_dim + msg_dim * max_children, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim, msg_dim)
 
         self.state_dim = state_dim
         self.hidden_dim = hidden_dim
@@ -122,25 +125,25 @@ class ActorDownAction(nn.Module):
         self.max_action = max_action
         # self.action_base = FCRelu(hidden_dim + msg_dim, action_dim, hidden_dim)
 
-        self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
-        if bidirectional:
-            self.action_base = FCRelu(hidden_dim*2, action_dim, hidden_dim)
-            self.msg_base = FCRelu(hidden_dim*2 + msg_dim, msg_dim * max_children, hidden_dim)
+        # self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
+        # if bidirectional:
+        #     self.action_base = FCRelu(hidden_dim*2, action_dim, hidden_dim)
+        #     self.msg_base = FCRelu(hidden_dim*2 + msg_dim, msg_dim * max_children, hidden_dim)
 
-        else:
-            self.action_base = FCRelu(hidden_dim, action_dim, hidden_dim)
-            self.msg_base = FCRelu(hidden_dim + msg_dim, msg_dim * max_children, hidden_dim)
+        # else:
+        self.action_base = FCRelu(hidden_dim+msg_dim, action_dim, hidden_dim)
+        self.msg_base = FCRelu(hidden_dim + msg_dim, msg_dim * max_children, hidden_dim)
 
         self.state_dim = state_dim
         self.hidden_dim = hidden_dim
         self.action_dim = action_dim
 
     def forward(self, x, m):
-        x, (_, _) = self.lstm_layer(x)
-        x = x[:, -1, :]
+        # x, (_, _) = self.lstm_layer(x)
+        # x = x[:, -1, :]
 
         xm = torch.cat((x, m), dim=-1)
-        xm = torch.tanh(xm)
+        # xm = torch.tanh(xm)
         action = self.max_action * torch.tanh(self.action_base(xm))
         msg_down = self.msg_base(xm)
         msg_down = F.normalize(msg_down, dim=-1)
@@ -174,13 +177,12 @@ class ActorGraphPolicy(nn.Module):
         if self.bu:
             # bottom-up then top-down
             if self.td:
-                self.sNet = nn.ModuleList([ActorUp(state_dim, msg_dim, max_children)] * self.num_limbs).to(device)
+                self.sNet = nn.ModuleList([ActorUp(state_dim, msg_dim, hidden_dim, max_children)] * self.num_limbs).to(device)
             # bottom-up only
             else:
                 self.sNet = nn.ModuleList(
-                    [ActorUpAction(state_dim, msg_dim, max_children, action_dim, hidden_dim,
-                                   max_action)] * self.num_limbs).to(
-                    device)
+                    [ActorUpAction(state_dim, msg_dim, max_children, action_dim, hidden_dim, max_action)] * self.num_limbs
+                ).to(device)
             if not self.disable_fold:
                 for i in range(self.num_limbs):
                     setattr(self, "sNet" + str(i).zfill(3), self.sNet[i])
@@ -189,14 +191,12 @@ class ActorGraphPolicy(nn.Module):
             # bottom-up then top-down
             if self.bu:
                 self.actor = nn.ModuleList(
-                    [ActorDownAction(msg_dim, action_dim, hidden_dim, msg_dim, max_action,
-                                     max_children)] * self.num_limbs).to(
+                    [ActorDownAction(msg_dim, msg_dim, max_children, action_dim, hidden_dim, max_action)] * self.num_limbs).to(
                     device)
             # top-down only
             else:
                 self.actor = nn.ModuleList(
-                    [ActorDownAction(state_dim, action_dim, hidden_dim, msg_dim, max_action,
-                                     max_children)] * self.num_limbs).to(
+                    [ActorDownAction(msg_dim, msg_dim, max_children, action_dim, hidden_dim, max_action)] * self.num_limbs).to(
                     device)
             if not self.disable_fold:
                 for i in range(self.num_limbs):
