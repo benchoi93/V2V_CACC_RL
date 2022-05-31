@@ -11,6 +11,7 @@ from ddpg.TD3 import TD3
 from cacc_env.multiCACCenv import multiCACC
 from cacc_env.state_type import state_minmax_lookup
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+from ddpg.utils import StateQueue
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
@@ -40,7 +41,7 @@ def parse_args():
     parser.add_argument('--max_episode', default=100000, type=int)  # num of games
     parser.add_argument('--print_log', default=5, type=int)
     parser.add_argument('--update_iteration', default=200, type=int)
-    parser.add_argument('--hidden-dim', default=64, type=int)
+    parser.add_argument('--hidden-dim', default=32, type=int)
     parser.add_argument('--max_children', default=1, type=int)
     parser.add_argument('--msg_dim', default=32, type=int)
 
@@ -69,6 +70,7 @@ def parse_args():
     parser.add_argument("--bu", default=False, action="store_true")
 
     parser.add_argument("--model", choices=["TD3", "DDPG"], default="TD3")
+    parser.add_argument("--state_time_step", default=10, type=int)
 
     args = parser.parse_args()
 
@@ -127,17 +129,21 @@ def main(args, device, directory):
             step = 0
             state = env.reset()
 
+            state_queue = StateQueue(args.state_time_step, state)
+            state_queue.put(state)
+
             envs = env.get_envs()
 
             for k in range(args.num_processes):
-                print(f"Episode: {i} Process {k} started - virtual leader info = (keep_duration ={envs[k][0].virtual_leader.keep_duration} , min_speed = {envs[k][0].virtual_leader.reach_speed})")
+                print(
+                    f"Episode: {i} Process {k} started - virtual leader info = (keep_duration ={envs[k][0].virtual_leader.keep_duration} , min_speed = {envs[k][0].virtual_leader.reach_speed})")
 
             now = time.time()
 
             done_list = [False for i in range(args.num_processes)]
             total_reward_list = [0 for i in range(args.num_processes)]
             for t in count():
-                action = agent.select_action(state)
+                action = agent.select_action(state_queue.get_state())
 
                 if args.render and i % args.render_interval == 0:
                     # for k in range(args.num_processes):
@@ -151,15 +157,18 @@ def main(args, device, directory):
 
                 else:
                     action = (action + np.random.normal(0, args.exploration_noise,
-                                                        size=env.action_space.shape[0])).clip(
-                        env.action_space.low, env.action_space.high)
+                              size=env.action_space.shape[0])).clip(env.action_space.low, env.action_space.high)
 
                 # if i == 0:
                 #     action = np.zeros_like(action)
 
                 next_state, reward, done, info = env.step(action)
 
-                agent.replay_buffer.push((state, next_state, action, np.array(reward), np.array(done, bool)))
+                prev_state = state_queue.get_state()
+                state_queue.put(next_state)
+                next_state = state_queue.get_state()
+
+                agent.replay_buffer.push((prev_state, next_state, action, np.array(reward), np.array(done, bool)))
 
                 state = next_state
 
@@ -176,7 +185,8 @@ def main(args, device, directory):
 
             for k in range(args.num_processes):
                 total_step += (step + 1)
-                print(f"Total T:{total_step} || ReplayBuffer {len(agent.replay_buffer.X_storage)} || Episode: {i} || Total Reward {total_reward_list[k]} || Avg Reward {total_reward_list[k]/step}")
+                print(
+                    f"Total T:{total_step} || ReplayBuffer {len(agent.replay_buffer.X_storage)} || Episode: {i} || Total Reward {total_reward_list[k]} || Avg Reward {total_reward_list[k]/step}")
                 agent.writer.add_scalar('episode_reward', total_reward_list[k], i * args.num_processes + k)
                 agent.writer.add_scalar('avg_reward', total_reward_list[k] / step, i * args.num_processes + k)
             print(f"Rollout Time : {time.time() - now :.2f}")

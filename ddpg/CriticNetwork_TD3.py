@@ -10,18 +10,33 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim):
+    def __init__(self, state_dim, action_dim, hidden_dim, bidirectional=True):
         super(Critic, self).__init__()
-        self.baseQ1 = FCRelu(state_dim + action_dim, 1, hidden_dim)
-        self.baseQ2 = FCRelu(state_dim + action_dim, 1, hidden_dim)
+        self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
+        if bidirectional:
+            self.baseQ1 = FCRelu(hidden_dim*2 + action_dim, 1, hidden_dim)
+            self.baseQ2 = FCRelu(hidden_dim*2 + action_dim, 1, hidden_dim)
+        else:
+            self.baseQ1 = FCRelu(hidden_dim + action_dim, 1, hidden_dim)
+            self.baseQ2 = FCRelu(hidden_dim + action_dim, 1, hidden_dim)
+
+        self.state_dim = state_dim
+        self.hidden_dim = hidden_dim
+        self.action_dim = action_dim
 
     def forward(self, x, u):
+        x, (_, _) = self.lstm_layer(x)
+        x = x[:, -1, :]
+
         xu = torch.cat([x, u], -1)
         x1 = self.baseQ1(xu)
         x2 = self.baseQ2(xu)
         return x1, x2
 
     def Q1(self, x, u):
+        x, (_, _) = self.lstm_layer(x)
+        x = x[:, -1, :]
+
         xu = torch.cat([x, u], -1)
         x1 = self.baseQ1(xu)
         return x1
@@ -200,7 +215,7 @@ class CriticGraphPolicy(nn.Module):
         self.clear_buffer()
 
         for i in range(self.num_limbs):
-            self.input_state[i] = state[:, i, :]
+            self.input_state[i] = state[:, :, i, :]
             self.input_action[i] = action[:, i]
             # self.input_action[i] = torch.unsqueeze(self.input_action[i], -1)
 

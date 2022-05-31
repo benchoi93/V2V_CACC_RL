@@ -10,12 +10,25 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim, max_action):
+    def __init__(self, state_dim, action_dim, hidden_dim, max_action, bidirectional=True):
         super(Actor, self).__init__()
         self.max_action = max_action
-        self.base = FCRelu(state_dim, action_dim, hidden_dim)
+        self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
+        if bidirectional:
+            self.base = FCRelu(hidden_dim*2, action_dim, hidden_dim)
+        else:
+            self.base = FCRelu(hidden_dim, action_dim, hidden_dim)
+
+        self.state_dim = state_dim
+        self.hidden_dim = hidden_dim
+        self.action_dim = action_dim
 
     def forward(self, x):
+        # b, s, t = x.shape
+        # # x = x.view(b, t, s)
+        x, (_, _) = self.lstm_layer(x)
+        x = x[:, -1, :]
+
         x = self.max_action * torch.tanh(self.base(x))
         return x
 
@@ -23,13 +36,25 @@ class Actor(nn.Module):
 class ActorUp(nn.Module):
     """a bottom-up module used in bothway message passing that only passes message to its parent"""
 
-    def __init__(self, state_dim, msg_dim, max_children):
+    def __init__(self, state_dim, msg_dim, hidden_dim, max_children, bidirectional=True):
         super(ActorUp, self).__init__()
-        self.fc1 = nn.Linear(state_dim, 64)
-        self.fc2 = nn.Linear(64 + msg_dim, 64)
-        self.fc3 = nn.Linear(64, msg_dim)
+        self.fc1 = nn.Linear(state_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim + msg_dim, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim, msg_dim)
+
+        self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
+        if bidirectional:
+            self.base = FCRelu(hidden_dim*2, hidden_dim)
+        else:
+            self.base = FCRelu(hidden_dim, hidden_dim)
+
+        self.state_dim = state_dim
+        self.hidden_dim = hidden_dim
 
     def forward(self, x, *m):
+        x, (_, _) = self.lstm_layer(x)
+        x = x[:, -1, :]
+
         m = torch.cat(m, dim=-1)
         x = self.fc1(x)
         x = F.normalize(x, dim=-1)
@@ -47,18 +72,31 @@ class ActorUp(nn.Module):
 class ActorUpAction(nn.Module):
     """a bottom-up module used in bottom-up-only message passing that passes message to its parent and outputs action"""
 
-    def __init__(self, state_dim, msg_dim, max_children, action_dim, hidden_dim, max_action):
+    def __init__(self, state_dim, msg_dim, max_children, action_dim, hidden_dim, max_action, bidirectional=True):
         super(ActorUpAction, self).__init__()
         self.fc1 = nn.Linear(state_dim, 64)
         self.fc2 = nn.Linear(64 + msg_dim * max_children, 64)
         self.fc3 = nn.Linear(64, msg_dim)
-        self.action_base = FCRelu(state_dim + msg_dim * max_children, action_dim, hidden_dim, )
+        # self.action_base = FCRelu(state_dim + msg_dim * max_children, action_dim, hidden_dim, )
         self.max_action = max_action
 
+        self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
+        if bidirectional:
+            self.action_base = FCRelu(hidden_dim*2, action_dim, hidden_dim)
+        else:
+            self.action_base = FCRelu(hidden_dim, action_dim, hidden_dim)
+
+        self.state_dim = state_dim
+        self.hidden_dim = hidden_dim
+        self.action_dim = action_dim
+
     def forward(self, x, *m):
+        x, (_, _) = self.lstm_layer(x)
+        x = x[:, -1, :]
+
         m = torch.cat(m, dim=0)
         xm = torch.cat((x, m), dim=-1)
-        xm = torch.tanh(xm)
+        # xm = torch.tanh(xm)
         action = self.max_action * torch.tanh(self.action_base(xm))
 
         x = self.fc1(x)
@@ -79,13 +117,28 @@ class ActorDownAction(nn.Module):
 
     # input dim is state dim if only using top down message passing
     # if using bottom up and then top down, it is the node's outgoing message dim
-    def __init__(self, self_input_dim, action_dim, hidden_dim, msg_dim, max_action, max_children):
+    def __init__(self, state_dim, msg_dim, max_children, action_dim, hidden_dim, max_action, bidirectional=True):
         super(ActorDownAction, self).__init__()
         self.max_action = max_action
-        self.action_base = FCRelu(self_input_dim + msg_dim, action_dim, hidden_dim)
-        self.msg_base = FCRelu(self_input_dim + msg_dim, msg_dim * max_children, hidden_dim)
+        # self.action_base = FCRelu(hidden_dim + msg_dim, action_dim, hidden_dim)
+
+        self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
+        if bidirectional:
+            self.action_base = FCRelu(hidden_dim*2, action_dim, hidden_dim)
+            self.msg_base = FCRelu(hidden_dim*2 + msg_dim, msg_dim * max_children, hidden_dim)
+
+        else:
+            self.action_base = FCRelu(hidden_dim, action_dim, hidden_dim)
+            self.msg_base = FCRelu(hidden_dim + msg_dim, msg_dim * max_children, hidden_dim)
+
+        self.state_dim = state_dim
+        self.hidden_dim = hidden_dim
+        self.action_dim = action_dim
 
     def forward(self, x, m):
+        x, (_, _) = self.lstm_layer(x)
+        x = x[:, -1, :]
+
         xm = torch.cat((x, m), dim=-1)
         xm = torch.tanh(xm)
         action = self.max_action * torch.tanh(self.action_base(xm))
@@ -172,7 +225,7 @@ class ActorGraphPolicy(nn.Module):
 
         for i in range(self.num_limbs):
             # self.input_state[i] = state[0][i]
-            self.input_state[i] = state[:, i, :]
+            self.input_state[i] = state[:, :, i, :]
 
         if self.bu:
             # bottom up transmission by recursion

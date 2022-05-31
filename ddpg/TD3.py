@@ -65,8 +65,9 @@ class TD3(object):
         self._cnt = 0
 
     def select_action(self, state):
-        state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
-        state = state.view(-1, self.args.num_agents, self.state_dim)
+        state = torch.FloatTensor(state).to(self.device)
+        b, t, ns = state.shape
+        state = state.view(-1, t,  self.args.num_agents, self.state_dim)
         action = self.actor(state, mode="inference").cpu().data.numpy()
         return action
 
@@ -80,11 +81,12 @@ class TD3(object):
             # Sample replay buffer
             b = self.args.batch_size
             n = self.args.num_agents
+            t = self.args.state_time_step
 
             x, y, u, r, d = self.replay_buffer.sample(self.args.batch_size)
-            state = torch.FloatTensor(x).to(self.device).view(b, n, x.shape[-1] // n)  # [B x N x S]
+            state = torch.FloatTensor(x).to(self.device).view(b, t, n, x.shape[-1] // n)  # [B x N x S]
             action = torch.FloatTensor(u).to(self.device).view(b, n, u.shape[-1] // n)  # [B x N x A]
-            next_state = torch.FloatTensor(y).to(self.device).view(b, n, y.shape[-1] // n)  # [B x N x S]
+            next_state = torch.FloatTensor(y).to(self.device).view(b, t, n, y.shape[-1] // n)  # [B x N x S]
             done = torch.FloatTensor(1 - d).to(self.device).view(b, n, d.shape[-1] // n)  # [B x N x 1]
             reward = torch.FloatTensor(r).to(self.device).view(b, n, r.shape[-1] // n)  # [B x N x 1]
 
