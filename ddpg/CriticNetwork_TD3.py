@@ -154,24 +154,24 @@ class CriticDownAction(nn.Module):
     # if using bottom up and then top down, it is the node's outgoing message dim
     def __init__(self, state_dim, action_dim, hidden_dim, msg_dim, max_children, bidirectional=True):
         super(CriticDownAction, self).__init__()
-        # self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
-        # if bidirectional:
-        #     self.baseQ1 = FCRelu(hidden_dim*2 + msg_dim + action_dim, 1, hidden_dim)
-        #     self.baseQ2 = FCRelu(hidden_dim*2 + msg_dim + action_dim, 1, hidden_dim)
-        #     self.msg_base = FCRelu(hidden_dim*2 + msg_dim, msg_dim * max_children, hidden_dim)
+        self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
+        if bidirectional:
+            self.baseQ1 = FCRelu(hidden_dim*2 + msg_dim + action_dim, 1, hidden_dim)
+            self.baseQ2 = FCRelu(hidden_dim*2 + msg_dim + action_dim, 1, hidden_dim)
+            self.msg_base = FCRelu(hidden_dim*2 + msg_dim, msg_dim * max_children, hidden_dim)
 
-        # else:
-        self.baseQ1 = FCRelu(hidden_dim + msg_dim + action_dim, 1, hidden_dim)
-        self.baseQ2 = FCRelu(hidden_dim + msg_dim + action_dim, 1, hidden_dim)
-        self.msg_base = FCRelu(hidden_dim + msg_dim, msg_dim * max_children, hidden_dim)
+        else:
+            self.baseQ1 = FCRelu(hidden_dim + msg_dim + action_dim, 1, hidden_dim)
+            self.baseQ2 = FCRelu(hidden_dim + msg_dim + action_dim, 1, hidden_dim)
+            self.msg_base = FCRelu(hidden_dim + msg_dim, msg_dim * max_children, hidden_dim)
 
         self.state_dim = state_dim
         self.hidden_dim = hidden_dim
         self.action_dim = action_dim
 
     def forward(self, x, u, m):
-        # x, (_, _) = self.lstm_layer(x)
-        # x = x[:, -1, :]
+        x, (_, _) = self.lstm_layer(x)
+        x = x[:, -1, :]
 
         xum = torch.cat([x, u, m], dim=-1)
         x_out1 = self.baseQ1(xum)
