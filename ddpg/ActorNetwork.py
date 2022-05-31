@@ -123,24 +123,24 @@ class ActorDownAction(nn.Module):
     def __init__(self, state_dim, msg_dim, max_children, action_dim, hidden_dim, max_action, bidirectional=True):
         super(ActorDownAction, self).__init__()
         self.max_action = max_action
-        # self.action_base = FCRelu(hidden_dim + msg_dim, action_dim, hidden_dim)
+        self.action_base = FCRelu(hidden_dim + msg_dim, action_dim, hidden_dim)
 
-        # self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
-        # if bidirectional:
-        #     self.action_base = FCRelu(hidden_dim*2, action_dim, hidden_dim)
-        #     self.msg_base = FCRelu(hidden_dim*2 + msg_dim, msg_dim * max_children, hidden_dim)
+        self.lstm_layer = nn.LSTM(state_dim, hidden_dim, num_layers=2, bidirectional=bidirectional, batch_first=True)
+        if bidirectional:
+            self.action_base = FCRelu(hidden_dim*2+msg_dim, action_dim, hidden_dim)
+            self.msg_base = FCRelu(hidden_dim*2 + msg_dim, msg_dim * max_children, hidden_dim)
 
-        # else:
-        self.action_base = FCRelu(hidden_dim+msg_dim, action_dim, hidden_dim)
-        self.msg_base = FCRelu(hidden_dim + msg_dim, msg_dim * max_children, hidden_dim)
+        else:
+            self.action_base = FCRelu(hidden_dim+msg_dim, action_dim, hidden_dim)
+            self.msg_base = FCRelu(hidden_dim + msg_dim, msg_dim * max_children, hidden_dim)
 
         self.state_dim = state_dim
         self.hidden_dim = hidden_dim
         self.action_dim = action_dim
 
     def forward(self, x, m):
-        # x, (_, _) = self.lstm_layer(x)
-        # x = x[:, -1, :]
+        x, (_, _) = self.lstm_layer(x)
+        x = x[:, -1, :]
 
         xm = torch.cat((x, m), dim=-1)
         # xm = torch.tanh(xm)
@@ -196,7 +196,7 @@ class ActorGraphPolicy(nn.Module):
             # top-down only
             else:
                 self.actor = nn.ModuleList(
-                    [ActorDownAction(msg_dim, msg_dim, max_children, action_dim, hidden_dim, max_action)] * self.num_limbs).to(
+                    [ActorDownAction(state_dim, msg_dim, max_children, action_dim, hidden_dim, max_action)] * self.num_limbs).to(
                     device)
             if not self.disable_fold:
                 for i in range(self.num_limbs):
