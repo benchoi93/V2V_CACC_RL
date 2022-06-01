@@ -51,7 +51,7 @@ def parse_args():
     parser.add_argument("--acc-reward-coef", default=1, type=float)
     parser.add_argument("--energy-reward-coef", default=0.01, type=float)
 
-    parser.add_argument("--shared-reward", default=True, action='store_true')
+    parser.add_argument("--shared-reward", default=False, action='store_true')
     parser.add_argument("--enable-communication", default=False, action='store_true')
     parser.add_argument("--episode_length", default=1000, type=int)
 
@@ -67,7 +67,6 @@ def parse_args():
 
     parser.add_argument("--td", default=False, action="store_true")
     parser.add_argument("--bu", default=False, action="store_true")
-
     parser.add_argument("--model", choices=["TD3", "DDPG"], default="TD3")
 
     args = parser.parse_args()
@@ -158,6 +157,9 @@ def main(args, device, directory):
                 #     action = np.zeros_like(action)
 
                 next_state, reward, done, info = env.step(action)
+
+                if args.shared_reward:
+                    reward = reward + np.broadcast_to(np.expand_dims(reward.mean(1), 1), reward.shape)
 
                 agent.replay_buffer.push((state, next_state, action, np.array(reward), np.array(done, bool)))
 
