@@ -61,6 +61,7 @@ class TD3(object):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.directory = directory
+        self.max_action = max_action
 
         self._cnt = 0
 
@@ -70,7 +71,7 @@ class TD3(object):
         action = self.actor(state, mode="inference").cpu().data.numpy()
         return action
 
-    def update(self):
+    def update(self, policy_freq=2):
         self._cnt += 1
 
         time_func = defaultdict(list)
@@ -93,7 +94,11 @@ class TD3(object):
 
             with torch.no_grad():
                 # Compute the target Q value
-                next_action = self.actor_target(next_state).view(b, n, self.action_dim)
+                noise = torch.FloatTensor(u).data.normal_(0, self.args.exploration_noise).to(device)
+                noise = noise.clamp(-self.args.exploration_noise, self.args.exploration_noise)
+                next_action = self.actor_target(next_state).view(b, n, self.action_dim) + noise.unsqueeze(-1)
+                next_action = next_action.clamp(-self.max_action, self.max_action)
+
                 target_Q1, target_Q2 = self.critic_target(next_state, next_action)  # [B x N x 1]
                 target_Q = torch.min(target_Q1, target_Q2)
                 target_Q = reward + (done * self.args.gamma * target_Q).detach()
@@ -115,25 +120,29 @@ class TD3(object):
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
             self.critic_optimizer.step()
+            self.num_critic_update_iteration += 1
 
             time_func["critic_optimizer"].append(time.time() - now)
             now = time.time()
 
-            # Compute actor loss
-            cur_pol_action = self.actor(state).view(b, n, self.action_dim)
-            actor_loss = -self.critic.Q1(state, cur_pol_action).mean()
-            actor_loss += ((cur_pol_action) ** 2).mean() * 0.001
-            self.writer.add_scalar('Loss/actor_loss', actor_loss, global_step=self.num_actor_update_iteration)
-            time_func["actor_loss"].append(time.time() - now)
-            now = time.time()
+            # delayed policy updates
+            if it % policy_freq == 0:
+                # Compute actor loss
+                cur_pol_action = self.actor(state).view(b, n, self.action_dim)
+                actor_loss = -self.critic.Q1(state, cur_pol_action).mean()
+                # actor_loss += ((cur_pol_action) ** 2).mean() * 0.001
+                self.writer.add_scalar('Loss/actor_loss', actor_loss, global_step=self.num_actor_update_iteration)
+                time_func["actor_loss"].append(time.time() - now)
+                now = time.time()
 
-            # Optimize the actor
-            self.actor_optimizer.zero_grad()
-            actor_loss.backward()
-            self.actor_optimizer.step()
+                # Optimize the actor
+                self.actor_optimizer.zero_grad()
+                actor_loss.backward()
+                self.actor_optimizer.step()
 
-            time_func["actor_optimizer"].append(time.time() - now)
-            now = time.time()
+                time_func["actor_optimizer"].append(time.time() - now)
+                now = time.time()
+                self.num_actor_update_iteration += 1
 
             # Update the frozen target models
             for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
@@ -141,9 +150,6 @@ class TD3(object):
 
             for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
                 target_param.data.copy_(self.args.tau * param.data + (1 - self.args.tau) * target_param.data)
-
-            self.num_actor_update_iteration += 1
-            self.num_critic_update_iteration += 1
 
         print(f"time_func")
         print(f"replay_buffer={np.mean(time_func['replay_buffer']):.5f}  \t  critic={np.mean(time_func['critic']):.5f}")
