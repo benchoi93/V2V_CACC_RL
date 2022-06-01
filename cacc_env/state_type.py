@@ -54,9 +54,9 @@ state_minmax_lookup = {
     "position": [0, 1e10],
     "speed": [0, 120/3.6],
     "acceleration": [-5, 5],
-    "spacing": [0, 1e10],
+    "spacing": [0, 100],
     "relative_speed": [-120/3.6, 120/3.6],
-    "leader_spacing": [0, 1e10],
+    "leader_spacing": [0, 100],
     "leader_relative_speed": [-120/3.6, 120/3.6],
     "message": [-1, 1]
 }
