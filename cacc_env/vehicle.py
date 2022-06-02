@@ -77,8 +77,9 @@ class Vehicle():
         """
         d_safe = self._v * self.reaction_time + (self.v)**2/(2*abs(self.acc_bound[0]))
         d_safe -= (self.leader.v)**2/(2*abs(self.leader.max_dec))
-        if d_safe + jamgap > self.leader.x - self.x:
-            acc = self.acc_bound[0] * 2  # severe deceleration
+        spacing = self.leader.x - self.x
+        if d_safe > spacing:
+            acc = self.acc_bound[0]   # severe deceleration
 
         if self.v + acc * self.dt < 0:
             acc = -self.v / self.dt
@@ -88,8 +89,8 @@ class Vehicle():
 
         self._jerk = (acc - self._a) / self.dt
         self._a = acc
+        self._x = self.x + self.v * self.dt + 0.5 * self.a * self.dt ** 2
         self._v = self.v + self.a * self.dt
-        self._x = self.x + self.v * self.dt
 
     def reset(self):
         self._x = self.args["initial_position"]

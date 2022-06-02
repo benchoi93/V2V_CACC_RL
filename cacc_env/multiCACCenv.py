@@ -144,16 +144,17 @@ class multiCACC(gym.Env):
         return self.get_state(i=i)
 
     def check_collision(self, i):
-        is_collision = False
+        # is_collision = False
 
-        # positions = [self.virtual_leader.x] + list(self.get_state(norm=False)[:, 0])
-        positions = [self.virtual_leader.x] + [a0.x for a0 in self.agents]
+        # # positions = [self.virtual_leader.x] + list(self.get_state(norm=False)[:, 0])
+        # positions = [self.virtual_leader.x] + [a0.x for a0 in self.agents]
 
-        for j in range(len(positions)):
-            if positions[j] <= positions[i+1]:
-                break
+        # for j in range(len(positions)):
+        #     if positions[j] <= positions[i+1]:
+        #         break
 
-        is_collision = i+1 != j
+        # is_collision = i+1 != j
+        is_collision = self.agents[i].x > self.agents[i].leader.x
 
         return is_collision
 
@@ -185,15 +186,16 @@ class multiCACC(gym.Env):
         if spacing <= 0:
             gap_reward = -1
         else:
-            gap_reward = (np.exp(-(np.log(spacing) - mu) ** 2 / (2 * sigma ** 2)) / (spacing * sigma * np.sqrt(2 * np.pi)))
+            gap_reward = (np.exp(-(np.log(spacing) - mu) ** 2 / (2 * sigma ** 2)) / (spacing * sigma * np.sqrt(2 * np.pi))) - 1
+            # gap_reward = -(np.log(spacing) - mu) ** 2 / (2 * sigma ** 2)
 
-        jerk_reward = - (self.agents[i]._jerk)**2 / (self.acc_bound[1] - self.acc_bound[0])**2
+        jerk_reward = - np.clip((self.agents[i]._jerk)**2 / (self.acc_bound[1]/self.dt - self.acc_bound[0]/self.dt)**2, -1, 0)
 
         energy_reward = - max(self.agents[i].get_energy_consumption(), 0)
 
         acc_reward = - (self.agents[i].a)**2 / self.acc_bound[1]**2
 
-        reward = coefs[0] * spd_reward + \
+        reward = coefs[0] * gap_reward + \
             coefs[1] * safe_reward + \
             coefs[2] * jerk_reward + \
             coefs[3] * acc_reward + \
@@ -204,7 +206,7 @@ class multiCACC(gym.Env):
         if is_collision:
             reward += -10  # collision_penalty
 
-        self.agents[i].reward_record['speed'] = spd_reward
+        self.agents[i].reward_record['speed'] = gap_reward
         self.agents[i].reward_record['safe'] = safe_reward
         self.agents[i].reward_record['acc'] = acc_reward
         self.agents[i].reward_record['jerk'] = jerk_reward
@@ -224,14 +226,15 @@ class multiCACC(gym.Env):
     def get_done(self, i) -> bool:
         return (self.agents[i].x > self.track_length) and (self._step_count > self.max_steps)
 
-    def clip_acc(self, acc):
+    def clip_acc(self, acc, lowerbound=-3, upperbound=3):
         # if acc < self.acc_bound[0]:
         #     return self.acc_bound[0]
         # el
-        if acc <= self.acc_bound[1]:
-            return acc
-        else:
-            return self.acc_bound[1]
+        # if acc <= self.acc_bound[1]:
+        #     return acc
+        # else:
+        #     return self.acc_bound[1]
+        return np.clip(acc, lowerbound, upperbound)
 
     def step(self, action_n: npt.NDArray[np.float32]) -> Tuple[List[npt.NDArray[np.float32]], List[float], List[bool], Dict[Any, Any]]:
         # assert action_n.shape[0] == self.num_agents
@@ -253,7 +256,8 @@ class multiCACC(gym.Env):
 
             adj = float(self.action_normalizer.denormalize(action_n[i]))
 
-            acc = idm_acc + adj
+            # acc = idm_acc + adj
+            acc = adj
             acc = self.clip_acc(acc)
 
             self.agents[i].action_record = adj
@@ -383,7 +387,8 @@ class multiCACC(gym.Env):
                 self.viewer.history['position'][str(i)].append(self.agents[i-1].x)
                 self.viewer.history['speed'][str(i)].append(self.agents[i-1].v)
                 self.viewer.history['jerk_value'][str(i)].append(self.agents[i-1].jerk)
-                self.viewer.history['TTC_value'][str(i)].append(abs(state_function['spacing'](self.agents[i-1])/(state_function['relative_speed'](self.agents[i-1]) + 0.00001)))
+                self.viewer.history['TTC_value'][str(i)].append(abs(state_function['spacing'](
+                    self.agents[i-1])/(state_function['relative_speed'](self.agents[i-1]) + 0.00001)))
                 self.viewer.history['acceleration'][str(i)].append(self.agents[i-1].a)
                 self.viewer.history['spacing'][str(i)].append(state_function['spacing'](self.agents[i-1]))
                 self.viewer.history['relative_speed'][str(i)].append(state_function['relative_speed'](self.agents[i-1]))
