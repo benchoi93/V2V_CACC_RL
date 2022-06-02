@@ -3,7 +3,13 @@ FROM tensorflow/tensorflow:2.8.0-gpu-jupyter
 COPY . /app
 WORKDIR /app
 
-# RUN pip install --upgrade pip
+RUN apt-get update
+RUN apt-get install -y python3-pyglet python3-venv
+RUN apt-get -y install xvfb
+
+RUN python3 -m venv .venv
+RUN source .venv/bin/activate
+RUN pip install --upgrade pip
 
 RUN export DISPLAY=':99.0'
 RUN Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
@@ -15,6 +21,7 @@ RUN git submodule init
 RUN git submodule update
 RUN cd ./baselines
 RUN pip install -e .
+
 
 RUN cd ..
 
