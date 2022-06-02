@@ -193,7 +193,7 @@ class multiCACC(gym.Env):
 
         acc_reward = - (self.agents[i].a)**2 / self.acc_bound[1]**2
 
-        reward = coefs[0] * spd_reward + \
+        reward = coefs[0] * gap_reward + \
             coefs[1] * safe_reward + \
             coefs[2] * jerk_reward + \
             coefs[3] * acc_reward + \
@@ -204,7 +204,7 @@ class multiCACC(gym.Env):
         if is_collision:
             reward += -10  # collision_penalty
 
-        self.agents[i].reward_record['speed'] = spd_reward
+        self.agents[i].reward_record['speed'] = gap_reward
         self.agents[i].reward_record['safe'] = safe_reward
         self.agents[i].reward_record['acc'] = acc_reward
         self.agents[i].reward_record['jerk'] = jerk_reward
@@ -253,7 +253,8 @@ class multiCACC(gym.Env):
 
             adj = float(self.action_normalizer.denormalize(action_n[i]))
 
-            acc = idm_acc + adj
+            # acc = idm_acc + adj
+            acc = adj
             acc = self.clip_acc(acc)
 
             self.agents[i].action_record = adj
@@ -383,7 +384,8 @@ class multiCACC(gym.Env):
                 self.viewer.history['position'][str(i)].append(self.agents[i-1].x)
                 self.viewer.history['speed'][str(i)].append(self.agents[i-1].v)
                 self.viewer.history['jerk_value'][str(i)].append(self.agents[i-1].jerk)
-                self.viewer.history['TTC_value'][str(i)].append(abs(state_function['spacing'](self.agents[i-1])/(state_function['relative_speed'](self.agents[i-1]) + 0.00001)))
+                self.viewer.history['TTC_value'][str(i)].append(abs(state_function['spacing'](
+                    self.agents[i-1])/(state_function['relative_speed'](self.agents[i-1]) + 0.00001)))
                 self.viewer.history['acceleration'][str(i)].append(self.agents[i-1].a)
                 self.viewer.history['spacing'][str(i)].append(state_function['spacing'](self.agents[i-1]))
                 self.viewer.history['relative_speed'][str(i)].append(state_function['relative_speed'](self.agents[i-1]))

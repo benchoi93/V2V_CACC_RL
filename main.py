@@ -44,12 +44,12 @@ def parse_args():
     parser.add_argument('--max_children', default=1, type=int)
     parser.add_argument('--msg_dim', default=32, type=int)
 
-    parser.add_argument("--adj-amp", default=2, type=float)
+    parser.add_argument("--adj-amp", default=5, type=float)
     parser.add_argument("--speed-reward-coef", default=1, type=float)
     parser.add_argument("--safe-reward-coef", default=1, type=float)
     parser.add_argument("--jerk-reward-coef", default=1, type=float)
-    parser.add_argument("--acc-reward-coef", default=1, type=float)
-    parser.add_argument("--energy-reward-coef", default=0.01, type=float)
+    parser.add_argument("--acc-reward-coef", default=0, type=float)
+    parser.add_argument("--energy-reward-coef", default=0, type=float)
 
     parser.add_argument("--shared-reward", default=False, action='store_true')
     parser.add_argument("--enable-communication", default=False, action='store_true')
@@ -129,7 +129,8 @@ def main(args, device, directory):
             envs = env.get_envs()
 
             for k in range(args.num_processes):
-                print(f"Episode: {i} Process {k} started - virtual leader info = (keep_duration ={envs[k][0].virtual_leader.keep_duration} , min_speed = {envs[k][0].virtual_leader.reach_speed})")
+                print(
+                    f"Episode: {i} Process {k} started - virtual leader info = (keep_duration ={envs[k][0].virtual_leader.keep_duration} , min_speed = {envs[k][0].virtual_leader.reach_speed})")
 
             now = time.time()
 
@@ -178,7 +179,8 @@ def main(args, device, directory):
 
             for k in range(args.num_processes):
                 total_step += (step + 1)
-                print(f"Total T:{total_step} || ReplayBuffer {len(agent.replay_buffer.X_storage)} || Episode: {i} || Total Reward {total_reward_list[k]} || Avg Reward {total_reward_list[k]/step}")
+                print(
+                    f"Total T:{total_step} || ReplayBuffer {len(agent.replay_buffer.X_storage)} || Episode: {i} || Total Reward {total_reward_list[k]} || Avg Reward {total_reward_list[k]/step}")
                 agent.writer.add_scalar('episode_reward', total_reward_list[k], i * args.num_processes + k)
                 agent.writer.add_scalar('avg_reward', total_reward_list[k] / step, i * args.num_processes + k)
             print(f"Rollout Time : {time.time() - now :.2f}")
