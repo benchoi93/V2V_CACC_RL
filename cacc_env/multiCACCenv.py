@@ -176,7 +176,7 @@ class multiCACC(gym.Env):
                 # TTC = state[i, 3] / state[i, 4]
                 TTC = spacing / rel_spd
 
-            if 1e-10 < TTC < 4:
+            if 1e-10 <= TTC < 4:
                 safe_reward = np.log(TTC/4)
             else:
                 safe_reward = 0
