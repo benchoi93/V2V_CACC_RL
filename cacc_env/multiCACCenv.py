@@ -166,6 +166,7 @@ class multiCACC(gym.Env):
         is_collision = self.check_collision(i)
         spacing = state_function['spacing'](self.agents[i])
         rel_spd = state_function['relative_speed'](self.agents[i])
+        speed = self.agents[i].v
 
         if rel_spd == 0:
             safe_reward = 0
@@ -183,10 +184,17 @@ class multiCACC(gym.Env):
 
         mu = 0.422618
         sigma = 0.43659
+        if speed == 0:
+            speed = 1e-10
+        headway = spacing / speed
+
+        if headway <= 0:
+            headway = 1e-10
+
         if spacing <= 0:
             gap_reward = -1
         else:
-            gap_reward = (np.exp(-(np.log(spacing) - mu) ** 2 / (2 * sigma ** 2)) / (spacing * sigma * np.sqrt(2 * np.pi))) - 1
+            gap_reward = (np.exp(-(np.log(headway) - mu) ** 2 / (2 * sigma ** 2)) / (headway * sigma * np.sqrt(2 * np.pi))) - 1
             # gap_reward = -(np.log(spacing) - mu) ** 2 / (2 * sigma ** 2)
 
         jerk_reward = - np.clip((self.agents[i]._jerk)**2 / (self.acc_bound[1]/self.dt - self.acc_bound[0]/self.dt)**2, -1, 0)
