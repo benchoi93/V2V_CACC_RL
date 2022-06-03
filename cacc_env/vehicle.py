@@ -76,10 +76,10 @@ class Vehicle():
         Update the vehicle's position and speed according to the action.
         """
         d_safe = self._v * self.reaction_time + (self.v)**2/(2*abs(self.acc_bound[0]))
-        d_safe -= (self.leader.v)**2/(2*abs(self.leader.max_dec))
+        d_safe -= (self.leader.v)**2/(2*abs(self.acc_bound[0]))
         spacing = self.leader.x - self.x
-        if d_safe > spacing:
-            acc = self.acc_bound[0]   # severe deceleration
+        # if d_safe > spacing:
+        #     acc = self.acc_bound[0] * 2  # severe deceleration
 
         if self.v + acc * self.dt < 0:
             acc = -self.v / self.dt
@@ -169,8 +169,8 @@ class Vehicle():
     def get_idm_acc(self):
         desired_speed = self.max_speed
         timegap = 1.5
-        a = 3
-        b = 2
+        a = self.acc_bound[1]
+        b = -self.acc_bound[0]
 
         delta = 4
         jamgap = 2
@@ -187,6 +187,56 @@ class Vehicle():
         s_star = jamgap + v_ego * timegap + (v_ego * v_rel) / (2 * (a * b)**0.5)
 
         acc = a * (1 - (v_ego / desired_speed) ** delta - (s_star/spacing) ** 2)
+
+        return acc
+
+    def get_eidm_acc(self):
+        desired_speed = self.max_speed
+        timegap = 1.5
+        a = self.acc_bound[1]
+        b = -self.acc_bound[0]
+        c = 0.01
+
+        delta = 4
+        jamgap = 2
+
+        v_lead = self.leader.v
+        v_ego = self.v
+
+        x_lead = self.leader.x
+        x_ego = self.x
+
+        v_rel = v_ego - v_lead
+        spacing = x_lead - x_ego
+
+        a_restricted = a
+        dvp = max(v_rel, 0)
+        v_lead2 = v_ego - dvp
+        denomCAH = v_lead2 * v_lead2 - 2 * spacing * a_restricted
+
+        acc_iidm = self.get_idm_acc()
+
+        # final double aLeadRestricted = Math.min(aLead, aLocal);
+        # final double dvp = Math.max(dv, 0.0);
+        # final double vLead = v - dvp;
+        # final double denomCAH = vLead * vLead - 2 * s * aLeadRestricted;
+
+        if (v_lead2 * dvp < -2 * spacing * a_restricted) and (denomCAH != 0):
+            acc_cah = v_ego * v_ego * a_restricted / denomCAH
+        else:
+            acc_cah = a_restricted - 0.5 * dvp * dvp / max(spacing, 0.0001)
+
+        # final double accCAH = ((vLead * dvp < -2 * s * aLeadRestricted) && (denomCAH != 0)) ? v * v * aLeadRestricted
+            # / denomCAH : aLeadRestricted - 0.5 * dvp * dvp / Math.max(s, 0.0001);
+        # // ACC with IIDM
+
+        if acc_iidm > acc_cah:
+            acc = acc_iidm
+        else:
+            acc = (1-c) * acc_iidm + c * (acc_cah + b * np.tanh((acc_iidm / acc_cah) / b))
+
+        # final double accACC_IIDM = (accIIDM > accCAH) ? accIIDM: (1 - param.getCoolness()) * accIIDM
+        # + param.getCoolness() * (accCAH + param.getB() * Math.tanh((accIIDM - accCAH) / param.getB()))
 
         return acc
 
