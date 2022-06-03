@@ -78,8 +78,8 @@ class Vehicle():
         d_safe = self._v * self.reaction_time + (self.v)**2/(2*abs(self.acc_bound[0]))
         d_safe -= (self.leader.v)**2/(2*abs(self.acc_bound[0]))
         spacing = self.leader.x - self.x
-        # if d_safe > spacing:
-        #     acc = self.acc_bound[0] * 2  # severe deceleration
+        if d_safe > spacing:
+            acc = self.acc_bound[0]  # severe deceleration
 
         if self.v + acc * self.dt < 0:
             acc = -self.v / self.dt
@@ -191,14 +191,22 @@ class Vehicle():
         return acc
 
     def get_eidm_acc(self):
-        desired_speed = self.max_speed
-        timegap = 1.5
         a = self.acc_bound[1]
         b = -self.acc_bound[0]
-        c = 0.01
+        c = 0.99
 
-        delta = 4
-        jamgap = 2
+        acc_iidm = self.get_idm_acc()
+        acc_cah = self.get_acc_cah()
+
+        if acc_iidm > acc_cah:
+            acc = acc_iidm
+        else:
+            acc = (1-c) * acc_iidm + c * (acc_cah + b * np.tanh((acc_iidm - acc_cah) / b))
+
+        return acc
+
+    def get_acc_cah(self):
+        a = self.acc_bound[1]
 
         v_lead = self.leader.v
         v_ego = self.v
@@ -214,31 +222,12 @@ class Vehicle():
         v_lead2 = v_ego - dvp
         denomCAH = v_lead2 * v_lead2 - 2 * spacing * a_restricted
 
-        acc_iidm = self.get_idm_acc()
-
-        # final double aLeadRestricted = Math.min(aLead, aLocal);
-        # final double dvp = Math.max(dv, 0.0);
-        # final double vLead = v - dvp;
-        # final double denomCAH = vLead * vLead - 2 * s * aLeadRestricted;
-
         if (v_lead2 * dvp < -2 * spacing * a_restricted) and (denomCAH != 0):
             acc_cah = v_ego * v_ego * a_restricted / denomCAH
         else:
             acc_cah = a_restricted - 0.5 * dvp * dvp / max(spacing, 0.0001)
 
-        # final double accCAH = ((vLead * dvp < -2 * s * aLeadRestricted) && (denomCAH != 0)) ? v * v * aLeadRestricted
-            # / denomCAH : aLeadRestricted - 0.5 * dvp * dvp / Math.max(s, 0.0001);
-        # // ACC with IIDM
-
-        if acc_iidm > acc_cah:
-            acc = acc_iidm
-        else:
-            acc = (1-c) * acc_iidm + c * (acc_cah + b * np.tanh((acc_iidm / acc_cah) / b))
-
-        # final double accACC_IIDM = (accIIDM > accCAH) ? accIIDM: (1 - param.getCoolness()) * accIIDM
-        # + param.getCoolness() * (accCAH + param.getB() * Math.tanh((accIIDM - accCAH) / param.getB()))
-
-        return acc
+        return acc_cah
 
 
 class Virtual_Leader(Vehicle):
@@ -278,7 +267,7 @@ class Virtual_Leader(Vehicle):
                 self._a = 0
 
             else:
-                self._a = -3
+                self._a = -2.5
 
             prev_v = self._v
             self._v = max(self._v + self._a * self.dt, 0)
@@ -286,7 +275,7 @@ class Virtual_Leader(Vehicle):
             self._x = self.x + self.v * self.dt
 
         elif self.mode == 2:
-            self._a = 3
+            self._a = 2.5
             prev_v = self._v
             self._v = min(self._v + self._a * self.dt, 120.0 / 3.6)
             self._a = (self._v - prev_v) / self.dt
@@ -309,4 +298,4 @@ class Virtual_Leader(Vehicle):
         self.reach_speed = np.random.randint(0, self.reach_speed_max)
 
         self.keep_duration = 100
-        self.reach_speed = 0
+        self.reach_speed = 5

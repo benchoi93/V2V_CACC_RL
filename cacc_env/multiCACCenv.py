@@ -262,9 +262,10 @@ class multiCACC(gym.Env):
 
             adj = float(self.action_normalizer.denormalize(action_n[i]))
 
-            acc = idm_acc + adj
-            # acc = adj
-            # acc = self.clip_acc(acc)
+            # acc = idm_acc + adj
+            acc = adj
+            acc_cah = self.agents[i].get_acc_cah()
+            acc = self.clip_acc(acc, lowerbound=-3, upperbound=acc_cah)
 
             self.agents[i].action_record = adj
 

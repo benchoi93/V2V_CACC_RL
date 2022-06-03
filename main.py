@@ -36,7 +36,7 @@ def parse_args():
     parser.add_argument('--log_interval', default=50, type=int)
     parser.add_argument('--load', default=False, type=bool)  # load model
     parser.add_argument('--render_interval', default=100, type=int)  # after render_interval, the env.render() will work
-    parser.add_argument('--exploration_noise', default=0.01, type=float)
+    parser.add_argument('--exploration_noise', default=0.05, type=float)
     parser.add_argument('--max_episode', default=100000, type=int)  # num of games
     parser.add_argument('--print_log', default=5, type=int)
     parser.add_argument('--update_iteration', default=200, type=int)
@@ -160,7 +160,8 @@ def main(args, device, directory):
                 next_state, reward, done, info = env.step(action)
 
                 if args.shared_reward:
-                    reward = reward + np.broadcast_to(np.expand_dims(reward.mean(1), 1), reward.shape)
+                    # reward = reward + np.broadcast_to(np.expand_dims(reward.mean(1), 1), reward.shape)
+                    reward = reward + np.broadcast_to(np.expand_dims(reward.min(1), 1), reward.shape)
 
                 agent.replay_buffer.push((state, next_state, action, np.array(reward), np.array(done, bool)))
 
