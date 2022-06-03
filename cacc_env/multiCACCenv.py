@@ -257,13 +257,14 @@ class multiCACC(gym.Env):
             action_n = [x[0] for x in action_n]
 
         for i in range(self.num_agents):
-            idm_acc = self.agents[i].get_idm_acc()
+            # idm_acc = self.agents[i].get_idm_acc()
+            idm_acc = self.agents[i].get_eidm_acc()
 
             adj = float(self.action_normalizer.denormalize(action_n[i]))
 
             acc = idm_acc + adj
             # acc = adj
-            acc = self.clip_acc(acc)
+            # acc = self.clip_acc(acc)
 
             self.agents[i].action_record = adj
 
@@ -456,7 +457,7 @@ class multiCACC(gym.Env):
             ax.set_xlabel('Time in 0.1 s')
             ax.set_ylabel('Acceleration in m/s2')
             ax.set_xlim(0, max(self._step_count, 100))
-            ax.set_ylim(self.acc_bound[0]*1.1, self.acc_bound[1]*1.1)
+            ax.set_ylim(-5, 5)
 
             ax = self.fig.add_subplot(254)
             for i in range(self.num_agents + 1):

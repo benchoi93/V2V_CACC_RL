@@ -154,8 +154,8 @@ def main(args, device, directory):
                 noise[0, :] = 0
                 action = (action + noise).clip(env.action_space.low, env.action_space.high)
 
-                # if i == 0:
-                #     action = np.zeros_like(action)
+                if i == 0:
+                    action = np.zeros_like(action)
 
                 next_state, reward, done, info = env.step(action)
 
