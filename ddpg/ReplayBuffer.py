@@ -37,7 +37,7 @@ class Replay_buffer():
                 self.R_storage.append(data[3][i])
                 self.D_storage.append(data[4][i])
 
-    def sample(self, batch_size, norm_rews=True):
+    def sample(self, batch_size, norm_rews=False):
         ind = np.random.randint(0, len(self.X_storage), size=batch_size)
         x, y, u, r, d = [], [], [], [], []
 

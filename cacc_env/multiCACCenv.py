@@ -188,14 +188,11 @@ class multiCACC(gym.Env):
             speed = 1e-10
         headway = spacing / speed
 
-        if headway <= 0:
+        if headway <= 1e-10:
             headway = 1e-10
 
-        if spacing <= 0:
-            gap_reward = -1
-        else:
-            gap_reward = (np.exp(-(np.log(headway) - mu) ** 2 / (2 * sigma ** 2)) / (headway * sigma * np.sqrt(2 * np.pi))) - 1
-            # gap_reward = -(np.log(spacing) - mu) ** 2 / (2 * sigma ** 2)
+        gap_reward = (np.exp(-(np.log(headway) - mu) ** 2 / (2 * sigma ** 2)) / (headway * sigma * np.sqrt(2 * np.pi)))
+        # gap_reward = -(np.log(spacing) - mu) ** 2 / (2 * sigma ** 2)
 
         jerk_reward = - np.clip((self.agents[i]._jerk)**2 / (self.acc_bound[1]/self.dt - self.acc_bound[0]/self.dt)**2, -1, 0)
 

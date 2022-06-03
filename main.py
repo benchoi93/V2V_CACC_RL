@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument("--adj-amp", default=3, type=float)
     parser.add_argument("--speed-reward-coef", default=1, type=float)
     parser.add_argument("--safe-reward-coef", default=1, type=float)
-    parser.add_argument("--jerk-reward-coef", default=0, type=float)
+    parser.add_argument("--jerk-reward-coef", default=1, type=float)
     parser.add_argument("--acc-reward-coef", default=0, type=float)
     parser.add_argument("--energy-reward-coef", default=0, type=float)
 
