@@ -158,7 +158,7 @@ class TD3(object):
 
     def save(self):
         torch.save(self.actor.state_dict(), self.directory / f'actor_{self._cnt}.pth')
-        torch.save(self.critic.state_dict(), self.directory / 'critic_{self._cnt}.pth')
+        torch.save(self.critic.state_dict(), self.directory / f'critic_{self._cnt}.pth')
         # print("====================================")
         # print("Model has been saved...")
         # print("====================================")

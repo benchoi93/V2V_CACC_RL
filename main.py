@@ -149,10 +149,10 @@ def main(args, device, directory):
                     else:
                         env.render(display=False)
 
-                else:
-                    noise = np.random.normal(0, args.exploration_noise, size=action.shape)
-                    noise[0, :] = 0
-                    action = (action + noise).clip(env.action_space.low, env.action_space.high)
+                # else:
+                noise = np.random.normal(0, args.exploration_noise, size=action.shape)
+                noise[0, :] = 0
+                action = (action + noise).clip(env.action_space.low, env.action_space.high)
 
                 # if i == 0:
                 #     action = np.zeros_like(action)
@@ -185,14 +185,15 @@ def main(args, device, directory):
                 agent.writer.add_scalar('avg_reward', total_reward_list[k] / step, i * args.num_processes + k)
             print(f"Rollout Time : {time.time() - now :.2f}")
 
+            if i % args.render_interval == 0:
+                agent.save()
+
             now = time.time()
             agent.update()
             print(f"Update Time : {time.time() - now :.2f}")
             print("-----------------------------------------\n")
             # "Total T: %d Episode Num: %d Episode T: %d Reward: %f
 
-            if i % args.log_interval == 0:
-                agent.save()
     else:
         raise NameError("mode wrong!!!")
 
