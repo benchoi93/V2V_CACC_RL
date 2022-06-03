@@ -194,7 +194,7 @@ class multiCACC(gym.Env):
         gap_reward = (np.exp(-(np.log(headway) - mu) ** 2 / (2 * sigma ** 2)) / (headway * sigma * np.sqrt(2 * np.pi)))
         # gap_reward = -(np.log(spacing) - mu) ** 2 / (2 * sigma ** 2)
 
-        jerk_reward = - np.clip((self.agents[i]._jerk)**2 / (self.acc_bound[1]/self.dt - self.acc_bound[0]/self.dt)**2, -1, 0)
+        jerk_reward = - np.clip((self.agents[i]._jerk)**2 / (self.acc_bound[1]/self.dt - self.acc_bound[0]/self.dt)**2, 0, 1)
 
         energy_reward = - max(self.agents[i].get_energy_consumption(), 0)
 
