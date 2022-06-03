@@ -149,10 +149,10 @@ def main(args, device, directory):
                     else:
                         env.render(display=False)
 
-                # else:
-                action = (action + np.random.normal(0, args.exploration_noise,
-                                                    size=env.action_space.shape[0])).clip(
-                    env.action_space.low, env.action_space.high)
+                else:
+                    noise = np.random.normal(0, args.exploration_noise, size=action.shape)
+                    noise[0, :] = 0
+                    action = (action + noise).clip(env.action_space.low, env.action_space.high)
 
                 # if i == 0:
                 #     action = np.zeros_like(action)

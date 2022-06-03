@@ -24,7 +24,7 @@ class Vehicle():
                  acc_bound: Tuple[float, float] = (-5, 5),
                  max_speed: float = 120.0 / 3.6,  # m/s
                  max_dec: float = -5.0,  # m/s2
-                 reaction_time=0.2,
+                 reaction_time=1,
                  ):
 
         self.args = {"initial_position": initial_position,
@@ -228,7 +228,7 @@ class Virtual_Leader(Vehicle):
                 self._a = 0
 
             else:
-                self._a = -5
+                self._a = -3
 
             prev_v = self._v
             self._v = max(self._v + self._a * self.dt, 0)
@@ -236,7 +236,7 @@ class Virtual_Leader(Vehicle):
             self._x = self.x + self.v * self.dt
 
         elif self.mode == 2:
-            self._a = 5
+            self._a = 3
             prev_v = self._v
             self._v = min(self._v + self._a * self.dt, 120.0 / 3.6)
             self._a = (self._v - prev_v) / self.dt
