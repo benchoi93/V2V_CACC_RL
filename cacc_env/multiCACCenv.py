@@ -210,7 +210,7 @@ class multiCACC(gym.Env):
         # action_diff = np.abs(self.agents[i].a - action)
 
         if is_collision:
-            reward += -10  # collision_penalty
+            reward[1] += -10  # collision_penalty
 
         self.agents[i].reward_record['speed'] = gap_reward
         self.agents[i].reward_record['safe'] = safe_reward
