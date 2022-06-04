@@ -49,7 +49,7 @@ def parse_args():
     parser.add_argument("--safe-reward-coef", default=1, type=float)
     parser.add_argument("--jerk-reward-coef", default=1, type=float)
     parser.add_argument("--acc-reward-coef", default=0, type=float)
-    parser.add_argument("--energy-reward-coef", default=0, type=float)
+    parser.add_argument("--energy-reward-coef", default=0.001, type=float)
 
     parser.add_argument("--shared-reward", default=False, action='store_true')
     parser.add_argument("--enable-communication", default=False, action='store_true')
@@ -136,6 +136,9 @@ def main(args, device, directory):
 
             done_list = [False for i in range(args.num_processes)]
             total_reward_list = [0 for i in range(args.num_processes)]
+            total_min_reward_list = [0 for i in range(args.num_processes)]
+            total_max_reward_list = [0 for i in range(args.num_processes)]
+            total_shared_reward_list = [0 for i in range(args.num_processes)]
             for t in count():
                 action = agent.select_action(state)
 
@@ -160,8 +163,7 @@ def main(args, device, directory):
                 next_state, reward, done, info = env.step(action)
 
                 if args.shared_reward:
-                    # reward = reward + np.broadcast_to(np.expand_dims(reward.mean(1), 1), reward.shape)
-                    reward = reward + np.broadcast_to(np.expand_dims(reward.min(1), 1), reward.shape)
+                    total_shared_reward_list = [x+info[i]['shared_reward'] for i, x in enumerate(total_shared_reward_list)]
 
                 agent.replay_buffer.push((state, next_state, action, np.array(reward), np.array(done, bool)))
 
@@ -176,14 +178,24 @@ def main(args, device, directory):
                 step += 1
 
                 sum_reward = np.mean(reward, 1)
+                min_reward = np.min(reward, 1)
+                max_reward = np.max(reward, 1)
+
                 total_reward_list = [x+sum_reward[i] for i, x in enumerate(total_reward_list)]
+                total_min_reward_list = [x+min_reward[i] for i, x in enumerate(total_min_reward_list)]
+                total_max_reward_list = [x+max_reward[i] for i, x in enumerate(total_max_reward_list)]
 
             for k in range(args.num_processes):
                 total_step += (step + 1)
                 print(
                     f"Total T:{total_step} || ReplayBuffer {len(agent.replay_buffer.X_storage)} || Episode: {i} || Total Reward {total_reward_list[k]} || Avg Reward {total_reward_list[k]/step}")
-                agent.writer.add_scalar('episode_reward', total_reward_list[k], i * args.num_processes + k)
-                agent.writer.add_scalar('avg_reward', total_reward_list[k] / step, i * args.num_processes + k)
+                agent.writer.add_scalar('reward/0_avg_reward', total_reward_list[k] / step, i * args.num_processes + k)
+                agent.writer.add_scalar('reward/1_min_agent_reward', total_min_reward_list[k] / step, i * args.num_processes + k)
+                agent.writer.add_scalar('reward/2_max_agent_reward', total_max_reward_list[k] / step, i * args.num_processes + k)
+                agent.writer.add_scalar('reward/3_shared_agent_reward', total_shared_reward_list[k] / step, i * args.num_processes + k)
+                agent.writer.add_scalar('reward/4_episode_reward', total_reward_list[k], i * args.num_processes + k)
+
+                # agent.writer.add_scalar('avg_reward', total_reward_list[k] / step, i * args.num_processes + k)
             print(f"Rollout Time : {time.time() - now :.2f}")
 
             if i % args.render_interval == 0:

@@ -200,11 +200,12 @@ class multiCACC(gym.Env):
 
         acc_reward = - (self.agents[i].a)**2 / self.acc_bound[1]**2
 
-        reward = coefs[0] * gap_reward + \
+        total_reward = coefs[0] * gap_reward + \
             coefs[1] * safe_reward + \
             coefs[2] * jerk_reward + \
             coefs[3] * acc_reward + \
             coefs[4] * energy_reward
+        reward = [gap_reward, safe_reward, jerk_reward, acc_reward, energy_reward]
 
         # action_diff = np.abs(self.agents[i].a - action)
 
@@ -216,7 +217,7 @@ class multiCACC(gym.Env):
         self.agents[i].reward_record['acc'] = acc_reward
         self.agents[i].reward_record['jerk'] = jerk_reward
         self.agents[i].reward_record['energy'] = energy_reward
-        self.agents[i].reward_record['total'] = reward
+        self.agents[i].reward_record['total'] = total_reward
 
         return reward
 
@@ -249,7 +250,7 @@ class multiCACC(gym.Env):
         obs_n = []
         reward_n = []
         done_n = []
-        info_n: Dict[Any, Any] = {}  # TODO : implement info
+        info_n = {}  # TODO : implement info
         self.virtual_leader.update()
 
         if self.config.enable_communication:
@@ -265,7 +266,7 @@ class multiCACC(gym.Env):
             # acc = idm_acc + adj
             acc = adj
             # acc_cah = self.agents[i].get_acc_cah()
-            # acc = self.clip_acc(acc, lowerbound=-3, upperbound=acc_cah)
+            acc = self.clip_acc(acc, lowerbound=self.acc_bound[0], upperbound=self.acc_bound[1])
 
             self.agents[i].action_record = adj
 
@@ -278,10 +279,16 @@ class multiCACC(gym.Env):
             reward_n += [self.get_agent_reward(i, action_n[i], coefs=self.coefs)]
             done_n += [self.get_done(i)]
 
+        info_n["specific_reward"] = reward_n
+        reward_specific = np.array(reward_n) * np.array(self.coefs)
+        reward_n = reward_specific.sum(1)
+
         if self.shared_reward:
-            shared_reward = np.mean(reward_n)
+            shared_reward = reward_specific.min(0).sum()
+            shared_reward += reward_specific.max(0).sum()
             # reward_n = [np.mean(reward_n)] * self.num_agents
             reward_n = [x+shared_reward for x in reward_n]
+            info_n["shared_reward"] = shared_reward
 
         obs_n = self.get_state().flatten()
 
