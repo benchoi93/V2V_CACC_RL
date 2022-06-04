@@ -258,14 +258,14 @@ class multiCACC(gym.Env):
 
         for i in range(self.num_agents):
             # idm_acc = self.agents[i].get_idm_acc()
-            idm_acc = self.agents[i].get_eidm_acc()
+            # idm_acc = self.agents[i].get_eidm_acc()
 
             adj = float(self.action_normalizer.denormalize(action_n[i]))
 
             # acc = idm_acc + adj
             acc = adj
-            acc_cah = self.agents[i].get_acc_cah()
-            acc = self.clip_acc(acc, lowerbound=-3, upperbound=acc_cah)
+            # acc_cah = self.agents[i].get_acc_cah()
+            # acc = self.clip_acc(acc, lowerbound=-3, upperbound=acc_cah)
 
             self.agents[i].action_record = adj
 
