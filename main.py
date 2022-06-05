@@ -53,7 +53,7 @@ def parse_args():
 
     parser.add_argument("--shared-reward", default=False, action='store_true')
     parser.add_argument("--enable-communication", default=False, action='store_true')
-    parser.add_argument("--episode_length", default=1000, type=int)
+    parser.add_argument("--episode_length", default=1100, type=int)
 
     parser.add_argument("--num-agents", default=20, type=int)
     parser.add_argument("--init_spacing", default=70, type=float)
@@ -63,7 +63,7 @@ def parse_args():
     parser.add_argument("--keep-duration", default=100, type=int)
     parser.add_argument("--track-length", default=3000, type=float)
     parser.add_argument("--num_processes", default=2, type=int)
-    parser.add_argument("--max_steps", default=1000, type=int)
+    # parser.add_argument("--max_steps", default=1000, type=int)
 
     parser.add_argument("--td", default=False, action="store_true")
     parser.add_argument("--bu", default=False, action="store_true")
@@ -173,7 +173,7 @@ def main(args, device, directory):
 
                 # if all(done_list):
                 # break
-                if t >= args.max_steps:
+                if t >= args.episode_length:
                     break
                 step += 1
 

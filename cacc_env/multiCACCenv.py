@@ -199,20 +199,28 @@ class multiCACC(gym.Env):
         energy_reward = - max(self.agents[i].get_energy_consumption(), 0)
 
         acc_reward = - (self.agents[i].a)**2 / self.acc_bound[1]**2
-
-        total_reward = coefs[0] * gap_reward + \
-            coefs[1] * safe_reward + \
-            coefs[2] * jerk_reward + \
-            coefs[3] * acc_reward + \
-            coefs[4] * energy_reward
-        reward = [gap_reward, safe_reward, jerk_reward, acc_reward, energy_reward]
-
         # action_diff = np.abs(self.agents[i].a - action)
 
         if is_collision:
             reward[1] += -10  # collision_penalty
 
-        self.agents[i].reward_record['speed'] = gap_reward
+        # if self.get_done(i):
+        dev_agent = max(self.viewer.history['speed'][str(i+1)]) - min(self.viewer.history['speed'][str(i+1)])
+        dev_leader = max(self.viewer.history['speed'][str(i)]) - min(self.viewer.history['speed'][str(i)])
+
+        string_stability = dev_agent / dev_leader
+        ss_reward = np.log(string_stability)    
+
+        reward = [gap_reward, safe_reward, jerk_reward, ss_reward, energy_reward]
+
+        total_reward = coefs[0] * reward[0] + \
+            coefs[1] * reward[1] + \
+            coefs[2] * reward[2] + \
+            coefs[3] * reward[3] + \
+            coefs[4] * reward[4]
+
+        self.agents[i].reward_record['speed'] = spd_reward
+        self.agents[i].reward_record['gap'] = gap_reward
         self.agents[i].reward_record['safe'] = safe_reward
         self.agents[i].reward_record['acc'] = acc_reward
         self.agents[i].reward_record['jerk'] = jerk_reward
@@ -444,6 +452,7 @@ class multiCACC(gym.Env):
             ax.set_xlabel('Time in 0.1 s')
             ax.set_ylabel('Position in m')
             ax.set_xlim(0, max(self._step_count, 100))
+            ax.set_ylim(1800, 3200)
 
             ax = self.fig.add_subplot(252)
             for i in range(self.num_agents + 1):

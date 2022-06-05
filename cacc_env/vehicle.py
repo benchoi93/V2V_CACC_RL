@@ -40,6 +40,7 @@ class Vehicle():
 
         self.reward_record = {"total": 0,
                               "speed": 0,
+                              "gap": 0,
                               "safe": 0,
                               "jerk": 0,
                               "acc": 0,
@@ -236,7 +237,7 @@ class Virtual_Leader(Vehicle):
                  initial_speed: float,
                  dt: float = 0.1,
                  acc_bound: Tuple[float, float] = (-5, 5),
-                 max_speed: float = 120.0 / 3.6,  # m/s
+                 max_speed: float = 100.0 / 3.6,  # m/s
                  reaction_time=1.0,
                  keep_duration=300,
                  reach_speed=10,
@@ -255,7 +256,7 @@ class Virtual_Leader(Vehicle):
         self.timecnt += 1
 
         if self.mode == 0:
-            self._v = 120.0 / 3.6
+            self._v = self.max_speed
             self._x = self.x + self.v * self.dt
             if self.timecnt > 300:
                 self.mode = 1
@@ -277,7 +278,7 @@ class Virtual_Leader(Vehicle):
         elif self.mode == 2:
             self._a = 2.5
             prev_v = self._v
-            self._v = min(self._v + self._a * self.dt, 120.0 / 3.6)
+            self._v = min(self._v + self._a * self.dt, self.max_speed)
             self._a = (self._v - prev_v) / self.dt
             self._x = self.x + self.v * self.dt
 
