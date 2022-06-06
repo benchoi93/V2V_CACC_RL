@@ -208,7 +208,7 @@ class multiCACC(gym.Env):
                 dev_leader = min(max(self.viewer.history['speed'][str(i)]), self.initial_speed[i]) - min(self.viewer.history['speed'][str(i)])
 
                 string_stability = max(dev_agent, 1e-3) / max(dev_leader, 1e-3)
-                ss_reward = np.log(string_stability)
+                ss_reward = - np.log(string_stability)
 
         reward = [gap_reward, safe_reward, jerk_reward, ss_reward, energy_reward]
         if is_collision:
