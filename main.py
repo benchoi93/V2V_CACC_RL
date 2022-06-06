@@ -48,7 +48,7 @@ def parse_args():
     parser.add_argument("--speed-reward-coef", default=1, type=float)
     parser.add_argument("--safe-reward-coef", default=1, type=float)
     parser.add_argument("--jerk-reward-coef", default=1, type=float)
-    parser.add_argument("--acc-reward-coef", default=0, type=float)
+    parser.add_argument("--acc-reward-coef", default=1, type=float)
     parser.add_argument("--energy-reward-coef", default=0.001, type=float)
 
     parser.add_argument("--shared-reward", default=False, action='store_true')
@@ -142,15 +142,15 @@ def main(args, device, directory):
             for t in count():
                 action = agent.select_action(state)
 
-                if args.render and i % args.render_interval == 0:
-                    # for k in range(args.num_processes):
-                    if t == args.episode_length - 1:
+                # for k in range(args.num_processes):
+                if t == args.episode_length - 1:
+                    if args.render and i % args.render_interval == 0:
                         figs = env.render(display=True, save=True)
                         for k in range(len(figs)):
                             fig = figs[k][0]
                             agent.writer.add_figure('episode', fig, global_step=i*args.num_processes + k)
-                    else:
-                        env.render(display=False)
+                else:
+                    env.render(display=False)
 
                 # else:
                 noise = np.random.normal(0, args.exploration_noise, size=action.shape)
@@ -233,6 +233,7 @@ if __name__ == "__main__":
               "config": args,
               "state_minmax_lookup": state_minmax_lookup,
               "enable_communication": args.enable_communication,
+              "max_steps": args.episode_length,
               #   "enable_communication": True,
               }
 

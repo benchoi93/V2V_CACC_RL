@@ -41,7 +41,8 @@ class multiCACC(gym.Env):
                  coefs=[1, 1, 1, 1],
                  config=None,
                  state_minmax_lookup=None,
-                 enable_communication=False,):
+                 enable_communication=False,
+                 max_steps=1000,):
 
         assert num_agents > 0
         assert initial_position.shape[0] == num_agents
@@ -54,7 +55,7 @@ class multiCACC(gym.Env):
         self.acc_bound = acc_bound
         self.track_length = track_length
         self.max_speed = max_speed
-        self.max_steps = 1000
+        self.max_steps = max_steps
 
         self.state_type = state_type
         self.state_minmax_lookup = state_minmax_lookup
@@ -91,14 +92,14 @@ class multiCACC(gym.Env):
                                              self.initial_speed[num_agents-1],
                                              self.dt,
                                              self.acc_bound,
-                                             self.max_speed,
+                                             self.initial_speed[num_agents-1],
                                              keep_duration=config.keep_duration)
 
         self.agents = [Vehicle(self.initial_position[-1-i],
                                self.initial_speed[i],
                                self.dt,
                                self.acc_bound,
-                               self.max_speed
+                               self.initial_speed[i]
                                ) for i in range(num_agents)]
 
         for i in range(len(self.agents)):
@@ -200,18 +201,18 @@ class multiCACC(gym.Env):
 
         acc_reward = - (self.agents[i].a)**2 / self.acc_bound[1]**2
         # action_diff = np.abs(self.agents[i].a - action)
+        ss_reward = 0
+        if (self._step_count >= self.max_steps-1):
+            if self.viewer is not None:
+                dev_agent = min(max(self.viewer.history['speed'][str(i+1)]), self.initial_speed[i]) - min(self.viewer.history['speed'][str(i+1)])
+                dev_leader = min(max(self.viewer.history['speed'][str(i)]), self.initial_speed[i]) - min(self.viewer.history['speed'][str(i)])
 
-        if is_collision:
-            reward[1] += -10  # collision_penalty
-
-        # if self.get_done(i):
-        dev_agent = max(self.viewer.history['speed'][str(i+1)]) - min(self.viewer.history['speed'][str(i+1)])
-        dev_leader = max(self.viewer.history['speed'][str(i)]) - min(self.viewer.history['speed'][str(i)])
-
-        string_stability = dev_agent / dev_leader
-        ss_reward = np.log(string_stability)    
+                string_stability = max(dev_agent, 1e-3) / max(dev_leader, 1e-3)
+                ss_reward = np.log(string_stability)
 
         reward = [gap_reward, safe_reward, jerk_reward, ss_reward, energy_reward]
+        if is_collision:
+            reward[1] += -10  # collision_penalty
 
         total_reward = coefs[0] * reward[0] + \
             coefs[1] * reward[1] + \
@@ -222,7 +223,7 @@ class multiCACC(gym.Env):
         self.agents[i].reward_record['speed'] = spd_reward
         self.agents[i].reward_record['gap'] = gap_reward
         self.agents[i].reward_record['safe'] = safe_reward
-        self.agents[i].reward_record['acc'] = acc_reward
+        self.agents[i].reward_record['acc'] = ss_reward
         self.agents[i].reward_record['jerk'] = jerk_reward
         self.agents[i].reward_record['energy'] = energy_reward
         self.agents[i].reward_record['total'] = total_reward
@@ -238,7 +239,8 @@ class multiCACC(gym.Env):
         return 0
 
     def get_done(self, i) -> bool:
-        return (self.agents[i].x > self.track_length) and (self._step_count > self.max_steps)
+        # return (self.agents[i].x > self.track_length) and (self._step_count > self.max_steps)
+        return (self._step_count >= self.max_steps)
 
     def clip_acc(self, acc, lowerbound=-3, upperbound=3):
         # if acc < self.acc_bound[0]:
@@ -501,7 +503,7 @@ class multiCACC(gym.Env):
             ax = self.fig.add_subplot(2, 5, 5)
             for i in range(self.num_agents + 1):
                 ax.plot(self.viewer.history['time_cnt'][str(i)],
-                        self.viewer.history['acc_reward'][str(i)],
+                        [self.viewer.history['acc_reward'][str(i)][-1]] * len(self.viewer.history['time_cnt'][str(i)]),
                         lw=2,
                         color=cmap(i))
             ax.set_xlabel('Time in 0.1 s')
