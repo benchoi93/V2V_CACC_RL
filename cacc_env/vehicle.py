@@ -44,7 +44,8 @@ class Vehicle():
                               "safe": 0,
                               "jerk": 0,
                               "acc": 0,
-                              "energy": 0}
+                              "energy": 0,
+                              "ss": 0}
 
         self.leader = None
         self.reset()

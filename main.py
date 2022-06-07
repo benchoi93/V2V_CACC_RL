@@ -49,6 +49,7 @@ def parse_args():
     parser.add_argument("--safe-reward-coef", default=1, type=float)
     parser.add_argument("--jerk-reward-coef", default=1, type=float)
     parser.add_argument("--acc-reward-coef", default=1, type=float)
+    parser.add_argument("--ss-reward-coef", default=1, type=float)
     parser.add_argument("--energy-reward-coef", default=0.001, type=float)
 
     parser.add_argument("--shared-reward", default=False, action='store_true')
@@ -228,7 +229,9 @@ if __name__ == "__main__":
                         args.safe_reward_coef,
                         args.jerk_reward_coef,
                         args.acc_reward_coef,
-                        args.energy_reward_coef],
+                        args.energy_reward_coef,
+                        args.ss_reward_coef
+                        ],
               "shared_reward": args.shared_reward,
               "config": args,
               "state_minmax_lookup": state_minmax_lookup,

@@ -159,7 +159,7 @@ class multiCACC(gym.Env):
 
         return is_collision
 
-    def get_agent_reward(self, i, action, coefs=[1, 1, 1, 1]) -> float:
+    def get_agent_reward(self, i, action, coefs=[1, 1, 1, 1, 1]) -> float:
         # state = self.get_state(norm=False)
         # norm_state = self.state_normalizer.normalize(state)
 
@@ -199,8 +199,10 @@ class multiCACC(gym.Env):
 
         energy_reward = - max(self.agents[i].get_energy_consumption(), 0)
 
-        acc_reward = - (self.agents[i].a)**2 / self.acc_bound[1]**2
-        # action_diff = np.abs(self.agents[i].a - action)
+        # acc_reward = - (self.agents[i].a)**2 / self.acc_bound[1]**2
+        action_diff = np.abs(self.agents[i].a - action)
+        acc_reward = - action_diff**2 / (self.acc_bound[1] - self.acc_bound[0])**2
+
         ss_reward = 0
         if (self._step_count >= self.max_steps-1):
             if self.viewer is not None:
@@ -210,7 +212,7 @@ class multiCACC(gym.Env):
                 string_stability = max(dev_agent, 1e-3) / max(dev_leader, 1e-3)
                 ss_reward = - np.log(string_stability)
 
-        reward = [gap_reward, safe_reward, jerk_reward, ss_reward, energy_reward]
+        reward = [gap_reward, safe_reward, jerk_reward, acc_reward, energy_reward, ss_reward]
         if is_collision:
             reward[1] += -10  # collision_penalty
 
@@ -218,12 +220,14 @@ class multiCACC(gym.Env):
             coefs[1] * reward[1] + \
             coefs[2] * reward[2] + \
             coefs[3] * reward[3] + \
-            coefs[4] * reward[4]
+            coefs[4] * reward[4] + \
+            coefs[5] * reward[5]
 
         self.agents[i].reward_record['speed'] = spd_reward
         self.agents[i].reward_record['gap'] = gap_reward
         self.agents[i].reward_record['safe'] = safe_reward
-        self.agents[i].reward_record['acc'] = ss_reward
+        self.agents[i].reward_record['acc'] = acc_reward
+        self.agents[i].reward_record['ss'] = ss_reward
         self.agents[i].reward_record['jerk'] = jerk_reward
         self.agents[i].reward_record['energy'] = energy_reward
         self.agents[i].reward_record['total'] = total_reward
@@ -358,6 +362,8 @@ class multiCACC(gym.Env):
                     self.viewer.history['safe_reward'] = defaultdict(list)
                     self.viewer.history['jerk_reward'] = defaultdict(list)
                     self.viewer.history['acc_reward'] = defaultdict(list)
+                    self.viewer.history['gap_reward'] = defaultdict(list)
+                    self.viewer.history['ss_reward'] = defaultdict(list)
                     self.viewer.history['energy_reward'] = defaultdict(list)
                     self.viewer.history['message'] = defaultdict(list)
 
@@ -377,6 +383,8 @@ class multiCACC(gym.Env):
                 self.viewer.history['acc_reward'][str(i)] = []
                 self.viewer.history['energy_reward'][str(i)] = []
                 self.viewer.history['message'][str(i)] = []
+                self.viewer.history['gap_reward'][str(i)] = []
+                self.viewer.history['ss_reward'][str(i)] = []
 
             # self.fig = plt.Figure((640 / 80, 200 / 80), dpi=80)
             self.fig = plt.Figure((screen_width/80, screen_height/80), dpi=80)
@@ -427,10 +435,12 @@ class multiCACC(gym.Env):
             if i == 0:
                 reward_record = {"total": 0,
                                  "speed": 0,
+                                 "gap": 0,
                                  "safe": 0,
                                  "jerk": 0,
                                  "acc": 0,
-                                 "energy": 0}
+                                 "energy": 0,
+                                 "ss": 0}
             else:
                 reward_record = self.agents[i-1].reward_record
             self.viewer.history['total_reward'][str(i)].append(reward_record['total'])
@@ -439,6 +449,8 @@ class multiCACC(gym.Env):
             self.viewer.history['jerk_reward'][str(i)].append(reward_record['jerk'])
             self.viewer.history['acc_reward'][str(i)].append(reward_record['acc'])
             self.viewer.history['energy_reward'][str(i)].append(reward_record['energy'])
+            self.viewer.history['gap_reward'][str(i)].append(reward_record['gap'])
+            self.viewer.history['ss_reward'][str(i)].append(reward_record['ss'])
 
         if display:
             from matplotlib import cm
@@ -503,11 +515,11 @@ class multiCACC(gym.Env):
             ax = self.fig.add_subplot(2, 5, 5)
             for i in range(self.num_agents + 1):
                 ax.plot(self.viewer.history['time_cnt'][str(i)],
-                        [self.viewer.history['acc_reward'][str(i)][-1]] * len(self.viewer.history['time_cnt'][str(i)]),
+                        self.viewer.history['spacing'][str(i)],
                         lw=2,
                         color=cmap(i))
             ax.set_xlabel('Time in 0.1 s')
-            ax.set_ylabel('acc_reward')
+            ax.set_ylabel('spacing')
             ax.set_xlim(0, max(self._step_count, 100))
 
             ax = self.fig.add_subplot(256)
@@ -523,21 +535,21 @@ class multiCACC(gym.Env):
             ax = self.fig.add_subplot(257)
             for i in range(self.num_agents + 1):
                 ax.plot(self.viewer.history['time_cnt'][str(i)],
-                        self.viewer.history['speed_reward'][str(i)],
+                        self.viewer.history['gap_reward'][str(i)],
                         lw=2,
                         color=cmap(i))
             ax.set_xlabel('Time in 0.1 s')
-            ax.set_ylabel('speed_reward')
+            ax.set_ylabel('gap_reward')
             ax.set_xlim(0, max(self._step_count, 100))
 
             ax = self.fig.add_subplot(258)
             for i in range(self.num_agents + 1):
                 ax.plot(self.viewer.history['time_cnt'][str(i)],
-                        self.viewer.history['safe_reward'][str(i)],
+                        self.viewer.history['acc_reward'][str(i)],
                         lw=2,
                         color=cmap(i))
             ax.set_xlabel('Time in 0.1 s')
-            ax.set_ylabel('safe_reward')
+            ax.set_ylabel('acc_reward')
             ax.set_xlim(0, max(self._step_count, 100))
 
             ax = self.fig.add_subplot(259)
@@ -550,24 +562,14 @@ class multiCACC(gym.Env):
             ax.set_ylabel('jerk_reward')
             ax.set_xlim(0, max(self._step_count, 100))
 
-            # ax = self.fig.add_subplot(2, 5, 9)
-            # for i in range(self.num_agents + 1):
-            #     ax.plot(self.viewer.history['time_cnt'][str(i)],
-            #             self.viewer.history['gap_reward'][str(i)],
-            #             lw=2,
-            #             color=cmap(i))
-            # ax.set_xlabel('Time in 0.1 s')
-            # ax.set_ylabel('gap_reward')
-            # ax.set_xlim(0, max(self._step_count, 100))
-
             ax = self.fig.add_subplot(2, 5, 10)
             for i in range(self.num_agents + 1):
                 ax.plot(self.viewer.history['time_cnt'][str(i)],
-                        self.viewer.history['energy_reward'][str(i)],
+                        [self.viewer.history['ss_reward'][str(i)][-1]] * len(self.viewer.history['time_cnt'][str(i)]),
                         lw=2,
                         color=cmap(i))
             ax.set_xlabel('Time in 0.1 s')
-            ax.set_ylabel('energy_reward')
+            ax.set_ylabel('ss_reward')
             ax.set_xlim(0, max(self._step_count, 100))
 
             # ax.set_ylim(self.acc_bound[0], self.acc_bound[1])
