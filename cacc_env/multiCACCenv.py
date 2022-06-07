@@ -200,11 +200,12 @@ class multiCACC(gym.Env):
         energy_reward = - max(self.agents[i].get_energy_consumption(), 0)
 
         # acc_reward = - (self.agents[i].a)**2 / self.acc_bound[1]**2
+        action = self.action_normalizer.denormalize(action)
         action_diff = np.abs(self.agents[i].a - action)
         acc_reward = - action_diff**2 / (self.acc_bound[1] - self.acc_bound[0])**2
 
         ss_reward = 0
-        if (self._step_count >= self.max_steps-1):
+        if self.get_done(i):
             if self.viewer is not None:
                 dev_agent = min(max(self.viewer.history['speed'][str(i+1)]), self.initial_speed[i]) - min(self.viewer.history['speed'][str(i+1)])
                 dev_leader = min(max(self.viewer.history['speed'][str(i)]), self.initial_speed[i]) - min(self.viewer.history['speed'][str(i)])
@@ -244,7 +245,7 @@ class multiCACC(gym.Env):
 
     def get_done(self, i) -> bool:
         # return (self.agents[i].x > self.track_length) and (self._step_count > self.max_steps)
-        return (self._step_count >= self.max_steps)
+        return (self._step_count >= self.max_steps) or (self.is_collision)
 
     def clip_acc(self, acc, lowerbound=-3, upperbound=3):
         # if acc < self.acc_bound[0]:
@@ -270,6 +271,11 @@ class multiCACC(gym.Env):
         if self.config.enable_communication:
             communication_n = [x[1] for x in action_n]
             action_n = [x[0] for x in action_n]
+
+        for i in range(self.num_agents):
+            is_collision = self.check_collision(i)
+            if is_collision:
+                self.is_collision = True
 
         for i in range(self.num_agents):
             # idm_acc = self.agents[i].get_idm_acc()
@@ -326,6 +332,7 @@ class multiCACC(gym.Env):
         self.viewer = None
 
         obs_n = self.get_state().flatten()
+        self.is_collision = False
         return obs_n
 
     def render(self, mode="human", display=True, save=False, viewer=False, save_path=None):
@@ -466,7 +473,7 @@ class multiCACC(gym.Env):
             ax.set_xlabel('Time in 0.1 s')
             ax.set_ylabel('Position in m')
             ax.set_xlim(0, max(self._step_count, 100))
-            ax.set_ylim(1800, 3200)
+            # ax.set_ylim(1800, 3200)
 
             ax = self.fig.add_subplot(252)
             for i in range(self.num_agents + 1):

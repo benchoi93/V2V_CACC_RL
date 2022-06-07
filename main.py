@@ -140,18 +140,11 @@ def main(args, device, directory):
             total_min_reward_list = [0 for i in range(args.num_processes)]
             total_max_reward_list = [0 for i in range(args.num_processes)]
             total_shared_reward_list = [0 for i in range(args.num_processes)]
+            info_list = [[] for i in range(args.num_processes)]
             for t in count():
                 action = agent.select_action(state)
 
                 # for k in range(args.num_processes):
-                if t == args.episode_length - 1:
-                    if args.render and i % args.render_interval == 0:
-                        figs = env.render(display=True, save=True)
-                        for k in range(len(figs)):
-                            fig = figs[k][0]
-                            agent.writer.add_figure('episode', fig, global_step=i*args.num_processes + k)
-                else:
-                    env.render(display=False)
 
                 # else:
                 noise = np.random.normal(0, args.exploration_noise, size=action.shape)
@@ -162,6 +155,8 @@ def main(args, device, directory):
                     action = np.zeros_like(action)
 
                 next_state, reward, done, info = env.step(action)
+                for k in range(len(info_list)):
+                    info_list[k].append(info[k])
 
                 if args.shared_reward:
                     total_shared_reward_list = [x+info[i]['shared_reward'] for i, x in enumerate(total_shared_reward_list)]
@@ -172,10 +167,8 @@ def main(args, device, directory):
 
                 done_list = [done_list[i] or done.all(1)[i] for i in range(args.num_processes)]
 
-                # if all(done_list):
-                # break
-                if t >= args.episode_length:
-                    break
+                # if t >= args.episode_length:
+                #     break
                 step += 1
 
                 sum_reward = np.mean(reward, 1)
@@ -186,6 +179,16 @@ def main(args, device, directory):
                 total_min_reward_list = [x+min_reward[i] for i, x in enumerate(total_min_reward_list)]
                 total_max_reward_list = [x+max_reward[i] for i, x in enumerate(total_max_reward_list)]
 
+                if all(done_list):
+                    if args.render and i % args.render_interval == 0:
+                        figs = env.render(display=True, save=True)
+                        for k in range(len(figs)):
+                            fig = figs[k][0]
+                            agent.writer.add_figure('episode', fig, global_step=i*args.num_processes + k)
+                    break
+                # else:
+                env.render(display=False)
+
             for k in range(args.num_processes):
                 total_step += (step + 1)
                 print(
@@ -195,6 +198,26 @@ def main(args, device, directory):
                 agent.writer.add_scalar('reward/2_max_agent_reward', total_max_reward_list[k] / step, i * args.num_processes + k)
                 agent.writer.add_scalar('reward/3_shared_agent_reward', total_shared_reward_list[k] / step, i * args.num_processes + k)
                 agent.writer.add_scalar('reward/4_episode_reward', total_reward_list[k], i * args.num_processes + k)
+                agent.writer.add_scalar('reward/5_episode_length', step, i * args.num_processes + k)
+
+                specific_reward_k = np.array([x['specific_reward'] for x in info_list[k]])
+
+                agent.writer.add_scalar('reward_avg/gap_reward', specific_reward_k.mean(1).mean(0)[0], i * args.num_processes + k)
+                agent.writer.add_scalar('reward_avg/safe_reward', specific_reward_k.mean(1).mean(0)[1], i * args.num_processes + k)
+                agent.writer.add_scalar('reward_avg/jerk_reward', specific_reward_k.mean(1).mean(0)[2], i * args.num_processes + k)
+                agent.writer.add_scalar('reward_avg/acc_reward', specific_reward_k.mean(1).mean(0)[3], i * args.num_processes + k)
+                agent.writer.add_scalar('reward_avg/energy_reward', specific_reward_k.mean(1).mean(0)[4], i * args.num_processes + k)
+                agent.writer.add_scalar('reward_avg/ss_reward', specific_reward_k.mean(1).mean(0)[5], i * args.num_processes + k)
+
+                for j in range(specific_reward_k.shape[1]):
+                    agent.writer.add_scalar(f"reward_byagent_{j}/gap_reward", specific_reward_k[:, j, :].mean(0)[0], i * args.num_processes + k)
+                    agent.writer.add_scalar(f"reward_byagent_{j}/safe_reward", specific_reward_k[:, j, :].mean(0)[1], i * args.num_processes + k)
+                    agent.writer.add_scalar(f"reward_byagent_{j}/jerk_reward", specific_reward_k[:, j, :].mean(0)[2], i * args.num_processes + k)
+                    agent.writer.add_scalar(f"reward_byagent_{j}/acc_reward", specific_reward_k[:, j, :].mean(0)[3], i * args.num_processes + k)
+                    agent.writer.add_scalar(f"reward_byagent_{j}/energy_reward", specific_reward_k[:, j, :].mean(0)[4], i * args.num_processes + k)
+                    agent.writer.add_scalar(f"reward_byagent_{j}/ss_reward", specific_reward_k[:, j, :].mean(0)[5], i * args.num_processes + k)
+
+                    # reward = [gap_reward, safe_reward, jerk_reward, acc_reward, energy_reward, ss_reward]
 
                 # agent.writer.add_scalar('avg_reward', total_reward_list[k] / step, i * args.num_processes + k)
             print(f"Rollout Time : {time.time() - now :.2f}")
