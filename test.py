@@ -11,7 +11,7 @@ from ddpg.TD3 import TD3
 from cacc_env.multiCACCenv import multiCACC
 from cacc_env.state_type import state_minmax_lookup
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
-import pickle
+import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument('--load', default=False, type=bool)  # load model
     parser.add_argument('--render_interval', default=100, type=int)  # after render_interval, the env.render() will work
     parser.add_argument('--exploration_noise', default=0.05, type=float)
-    parser.add_argument('--max_episode', default=100000, type=int)  # num of games
+    parser.add_argument('--max_episode', default=1, type=int)  # num of games
     parser.add_argument('--print_log', default=5, type=int)
     parser.add_argument('--update_iteration', default=200, type=int)
     parser.add_argument('--hidden-dim', default=64, type=int)
@@ -71,6 +71,7 @@ def parse_args():
     parser.add_argument("--bu", default=False, action="store_true")
     parser.add_argument("--model", choices=["TD3", "DDPG"], default="TD3")
 
+    parser.add_argument("--model_path", default="")
     args = parser.parse_args()
 
     return args
@@ -102,24 +103,11 @@ def main(args, device, directory):
                   directory=directory,
                   device=device,
                   args=args)
+
+    agent.actor.load_state_dict(torch.load(args.model_path))
+
     # (self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold, td, bu, device, directory, args):
     ep_r = 0
-    # if args.mode == 'test':
-    #     agent.load()
-    #     for i in range(args.test_iteration):
-    #         state = env.reset()
-    #         for t in count():
-    #             action = agent.select_action(state)
-    #             next_state, reward, done, info = env.step(np.float32(action))
-    #             ep_r += reward
-    #             env.render()
-    #             if done or t >= args.max_length_of_trajectory:
-    #                 print("Ep_i \t{}, the ep_r is \t{:0.2f}, the step is \t{}".format(i, ep_r, t))
-    #                 ep_r = 0
-    #                 break
-    #             state = next_state
-
-    # elif args.mode == 'train':
     if args.load:
         agent.load()
     total_step = 0
@@ -185,55 +173,13 @@ def main(args, device, directory):
                     figs = env.render(display=True, save=True)
                     for k in range(len(figs)):
                         fig = figs[k][0]
-                        agent.writer.add_figure('episode', fig, global_step=i*args.num_processes + k)
+                        # agent.writer.add_figure('episode', fig, global_step=i*args.num_processes + k)
+                        fig.savefig(directory / f"episode_{i}_process_{k}.png")
                 break
             # else:
             env.render(display=False)
 
-        for k in range(args.num_processes):
-            total_step += (step + 1)
-            print(
-                f"Total T:{total_step} || ReplayBuffer {len(agent.replay_buffer.X_storage)} || Episode: {i} || Total Reward {total_reward_list[k]} || Avg Reward {total_reward_list[k]/step}")
-            agent.writer.add_scalar('reward/0_avg_reward', total_reward_list[k] / step, i * args.num_processes + k)
-            agent.writer.add_scalar('reward/1_min_agent_reward', total_min_reward_list[k] / step, i * args.num_processes + k)
-            agent.writer.add_scalar('reward/2_max_agent_reward', total_max_reward_list[k] / step, i * args.num_processes + k)
-            agent.writer.add_scalar('reward/3_shared_agent_reward', total_shared_reward_list[k] / step, i * args.num_processes + k)
-            agent.writer.add_scalar('reward/4_episode_reward', total_reward_list[k], i * args.num_processes + k)
-            agent.writer.add_scalar('reward/5_episode_length', step, i * args.num_processes + k)
-
-            specific_reward_k = np.array([x['specific_reward'] for x in info_list[k]])
-
-            agent.writer.add_scalar('reward_avg/gap_reward', specific_reward_k.mean(1).mean(0)[0], i * args.num_processes + k)
-            agent.writer.add_scalar('reward_avg/safe_reward', specific_reward_k.mean(1).mean(0)[1], i * args.num_processes + k)
-            agent.writer.add_scalar('reward_avg/jerk_reward', specific_reward_k.mean(1).mean(0)[2], i * args.num_processes + k)
-            agent.writer.add_scalar('reward_avg/acc_reward', specific_reward_k.mean(1).mean(0)[3], i * args.num_processes + k)
-            agent.writer.add_scalar('reward_avg/energy_reward', specific_reward_k.mean(1).mean(0)[4], i * args.num_processes + k)
-            agent.writer.add_scalar('reward_avg/ss_reward', specific_reward_k.mean(1).mean(0)[5], i * args.num_processes + k)
-
-            for j in range(specific_reward_k.shape[1]):
-                agent.writer.add_scalar(f"reward_byagent_{j}/gap_reward", specific_reward_k[:, j, :].mean(0)[0], i * args.num_processes + k)
-                agent.writer.add_scalar(f"reward_byagent_{j}/safe_reward", specific_reward_k[:, j, :].mean(0)[1], i * args.num_processes + k)
-                agent.writer.add_scalar(f"reward_byagent_{j}/jerk_reward", specific_reward_k[:, j, :].mean(0)[2], i * args.num_processes + k)
-                agent.writer.add_scalar(f"reward_byagent_{j}/acc_reward", specific_reward_k[:, j, :].mean(0)[3], i * args.num_processes + k)
-                agent.writer.add_scalar(f"reward_byagent_{j}/energy_reward", specific_reward_k[:, j, :].mean(0)[4], i * args.num_processes + k)
-                agent.writer.add_scalar(f"reward_byagent_{j}/ss_reward", specific_reward_k[:, j, :].mean(0)[5], i * args.num_processes + k)
-
-                # reward = [gap_reward, safe_reward, jerk_reward, acc_reward, energy_reward, ss_reward]
-
-            # agent.writer.add_scalar('avg_reward', total_reward_list[k] / step, i * args.num_processes + k)
         print(f"Rollout Time : {time.time() - now :.2f}")
-
-        if i % args.render_interval == 0:
-            agent.save()
-
-        now = time.time()
-        agent.update()
-        print(f"Update Time : {time.time() - now :.2f}")
-        print("-----------------------------------------\n")
-        # "Total T: %d Episode Num: %d Episode T: %d Reward: %f
-
-    # else:
-    #     raise NameError("mode wrong!!!")
 
 
 if __name__ == "__main__":
@@ -282,7 +228,7 @@ if __name__ == "__main__":
 
     min_Val = torch.tensor(1e-7).float().to(device)  # min value
 
-    model_dir = Path('./models')
+    model_dir = Path('./models_test')
     if not model_dir.exists():
         curr_run = 'run1'
     else:
@@ -293,15 +239,9 @@ if __name__ == "__main__":
             curr_run = 'run1'
         else:
             curr_run = 'run%i' % (max(exst_run_nums) + 1)
-    directory = model_dir / curr_run / 'logs'
+    directory = model_dir / curr_run
 
-    # pickle args
-    with open(directory / 'args.pkl', 'wb') as f:
-        pickle.dump(args, f)
-    # pickle kwargs
-    with open(directory / 'kwargs.pkl', 'wb') as f:
-        pickle.dump(kwargs, f)
+    (directory).mkdir(parents=True, exist_ok=True)
 
     main(args, device, directory)
-
     env.close()
