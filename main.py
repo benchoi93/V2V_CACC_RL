@@ -189,10 +189,11 @@ def main(args, device, directory):
 
             if any(done_list):
                 if args.render and i % args.render_interval == 0:
-                    figs = env.render(display=True, save=True)
-                    for k in range(len(figs)):
+                    # figs = env.render(display=True, save=True)
+                    for k in range(len(done_list)):
                         if done_list[k]:
-                            fig = figs[k][0]
+                            env.remotes[k].send(('render_out', None))
+                            fig = env.remotes[k].recv()[0]
                             agent.writer.add_figure('episode', fig, global_step=i*args.num_processes + k)
                             # env.reset()
 
