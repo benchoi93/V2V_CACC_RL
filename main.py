@@ -71,6 +71,8 @@ def parse_args():
     parser.add_argument("--bu", default=False, action="store_true")
     parser.add_argument("--model", choices=["TD3", "DDPG"], default="TD3")
 
+    parser.add_argument("--ngsim", default=False, action="store_true")
+
     args = parser.parse_args()
 
     return args
@@ -131,12 +133,17 @@ def main(args, device, directory):
         envs = env.get_envs()
 
         for k in range(args.num_processes):
-            print(
-                f"Episode: {i} Process {k} started - virtual leader info = (keep_duration ={envs[k][0].virtual_leader.keep_duration} , min_speed = {envs[k][0].virtual_leader.reach_speed})")
+            if args.ngsim:
+                print(
+                    f"Episode: {i} Process {k} started with random NGSIM")
+            else:
+                print(
+                    f"Episode: {i} Process {k} started - virtual leader info = (keep_duration ={envs[k][0].virtual_leader.keep_duration} , min_speed = {envs[k][0].virtual_leader.reach_speed})")
 
         now = time.time()
 
         done_list = [False for i in range(args.num_processes)]
+        total_done_list = [False for i in range(args.num_processes)]
         total_reward_list = [0 for i in range(args.num_processes)]
         total_min_reward_list = [0 for i in range(args.num_processes)]
         total_max_reward_list = [0 for i in range(args.num_processes)]
@@ -180,14 +187,24 @@ def main(args, device, directory):
             total_min_reward_list = [x+min_reward[i] for i, x in enumerate(total_min_reward_list)]
             total_max_reward_list = [x+max_reward[i] for i, x in enumerate(total_max_reward_list)]
 
-            if all(done_list):
+            if any(done_list):
                 if args.render and i % args.render_interval == 0:
                     figs = env.render(display=True, save=True)
                     for k in range(len(figs)):
-                        fig = figs[k][0]
-                        agent.writer.add_figure('episode', fig, global_step=i*args.num_processes + k)
+                        if done_list[k]:
+                            fig = figs[k][0]
+                            agent.writer.add_figure('episode', fig, global_step=i*args.num_processes + k)
+                            # env.reset()
+
+                for k in range(len(done_list)):
+                    if done_list[k]:
+                        env.remotes[k].send(('reset', None))
+                        state[k, :] = env.remotes[k].recv()[0]
+                        done_list[k] = False
+                        total_done_list[k] = True
+
+            if all(total_done_list):
                 break
-            # else:
             env.render(display=False)
 
         for k in range(args.num_processes):
@@ -261,7 +278,7 @@ if __name__ == "__main__":
               "state_minmax_lookup": state_minmax_lookup,
               "enable_communication": args.enable_communication,
               "max_steps": args.episode_length,
-              #   "enable_communication": True,
+              "ngsim": args.ngsim,
               }
 
     # env = multiCACC(**kwargs)
@@ -294,7 +311,7 @@ if __name__ == "__main__":
         else:
             curr_run = 'run%i' % (max(exst_run_nums) + 1)
     directory = model_dir / curr_run / 'logs'
-
+    directory.mkdir(parents=True, exist_ok=True)
     # pickle args
     with open(directory / 'args.pkl', 'wb') as f:
         pickle.dump(args, f)

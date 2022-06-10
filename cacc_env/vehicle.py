@@ -1,6 +1,7 @@
 from .utils import min_max_normalizer
 from typing import Tuple
 import numpy as np
+import random
 
 
 class queue():
@@ -94,9 +95,17 @@ class Vehicle():
         self._x = self.x + self.v * self.dt + 0.5 * self.a * self.dt ** 2
         self._v = self.v + self.a * self.dt
 
-    def reset(self):
-        self._x = self.args["initial_position"]
-        self._v = self.args["initial_speed"]
+    def reset(self, force_x=None, force_v=None):
+        if force_x is None:
+            self._x = self.args["initial_position"]
+        else:
+            self._x = force_x
+
+        if force_v is None:
+            self._v = self.args["initial_speed"]
+        else:
+            self._v = force_v
+
         self._a = 0.0
         self._jerk = 0.0
         self.action_record = 0
@@ -232,6 +241,51 @@ class Vehicle():
         return acc_cah
 
 
+class NGSIM_Virtual_Leader(Vehicle):
+    def __init__(self,
+                 initial_position: float,
+                 initial_speed: float,
+                 dt: float = 0.1,
+                 acc_bound: Tuple[float, float] = (-5, 5),
+                 max_speed: float = 100.0 / 3.6,  # m/s
+                 reaction_time=1.0,
+
+                 ):
+        self.timecnt = 0
+        self.mode = 0
+
+        super().__init__(initial_position, initial_speed, dt, acc_bound, max_speed, reaction_time)
+
+    def reset(self, force_x=None, force_v=None, ref_traj=None):
+        self.ref_traj = ref_traj
+
+        if force_x is None:
+            self._x = self.args["initial_position"]
+        else:
+            self._x = force_x
+
+        if force_v is None:
+            self._v = self.args["initial_speed"]
+        else:
+            self._v = force_v
+
+        self._a = 0.0
+        self._jerk = 0.0
+        self.action_record = 0
+        self.timecnt = 0
+
+    def update(self):
+        self.timecnt += 1
+        leader_v = self.ref_traj[self.timecnt, 3]
+
+        new_a = (self.v - leader_v) / self.dt
+        self._jerk = (new_a - self._a) / self.dt
+        self._a = new_a
+
+        self._x = self.x + leader_v * self.dt
+        self._v = leader_v
+
+
 class Virtual_Leader(Vehicle):
     def __init__(self,
                  initial_position: float,
@@ -299,5 +353,5 @@ class Virtual_Leader(Vehicle):
         self.keep_duration = np.random.randint(0, self.keep_duration_max)
         self.reach_speed = np.random.randint(0, self.reach_speed_max)
 
-        self.keep_duration = 100
-        self.reach_speed = 5
+        # self.keep_duration = 100
+        # self.reach_speed = 5

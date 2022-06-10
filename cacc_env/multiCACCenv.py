@@ -4,10 +4,11 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import numpy.typing as npt
 import gym
-from .vehicle import Vehicle, Virtual_Leader
+from .vehicle import Vehicle, Virtual_Leader, NGSIM_Virtual_Leader
 from .utils import min_max_normalizer, min_max_normalizer_action
 from .rendering import Viewer, Figure
 from .state_type import state_function
+import random
 
 from gym.spaces import Box
 
@@ -42,7 +43,8 @@ class multiCACC(gym.Env):
                  config=None,
                  state_minmax_lookup=None,
                  enable_communication=False,
-                 max_steps=1000,):
+                 max_steps=1000,
+                 ngsim=False):
 
         assert num_agents > 0
         assert initial_position.shape[0] == num_agents
@@ -88,12 +90,29 @@ class multiCACC(gym.Env):
 
         self.state_normalizer = min_max_normalizer(self.state_mins, self.state_maxs)
 
-        self.virtual_leader = Virtual_Leader(self.initial_position[num_agents-1]+self.config.init_spacing,
-                                             self.initial_speed[num_agents-1],
-                                             self.dt,
-                                             self.acc_bound,
-                                             self.initial_speed[num_agents-1],
-                                             keep_duration=config.keep_duration)
+        self.ngsim = ngsim
+
+        if ngsim:
+            import scipy.io as sio
+            self.train = sio.loadmat('data/trainSet.mat')['calibrationData']
+            self.test = sio.loadmat('data/testSet.mat')['validationData']
+
+            self.train_num = self.train.shape[0]
+            self.test_num = self.test.shape[0]
+
+            self.virtual_leader = NGSIM_Virtual_Leader(self.initial_position[num_agents-1]+self.config.init_spacing,
+                                                       self.initial_speed[num_agents-1],
+                                                       self.dt,
+                                                       self.acc_bound,
+                                                       self.initial_speed[num_agents-1]
+                                                       )
+        else:
+            self.virtual_leader = Virtual_Leader(self.initial_position[num_agents-1]+self.config.init_spacing,
+                                                 self.initial_speed[num_agents-1],
+                                                 self.dt,
+                                                 self.acc_bound,
+                                                 self.initial_speed[num_agents-1],
+                                                 keep_duration=config.keep_duration)
 
         self.agents = [Vehicle(self.initial_position[-1-i],
                                self.initial_speed[i],
@@ -245,7 +264,7 @@ class multiCACC(gym.Env):
 
     def get_done(self, i) -> bool:
         # return (self.agents[i].x > self.track_length) and (self._step_count > self.max_steps)
-        return (self._step_count >= self.max_steps) or (self.is_collision)
+        return (self._step_count >= self.max_steps-1) or (self.is_collision)
 
     def clip_acc(self, acc, lowerbound=-3, upperbound=3):
         # if acc < self.acc_bound[0]:
@@ -314,12 +333,34 @@ class multiCACC(gym.Env):
 
         return obs_n, reward_n, done_n, info_n
 
-    def reset(self):
+    def reset(self, mode="train"):
         self._step_count = 0
 
-        for i in range(self.num_agents):
-            self.agents[i].reset()
-        self.virtual_leader.reset()
+        if self.ngsim:
+            if mode == "train":
+                car_fol_id = random.randint(0, self.train_num - 1)
+                ref_traj = self.train[car_fol_id][0]
+            elif mode == "test":
+                car_fol_id = random.randint(0, self.test_num - 1)
+                ref_traj = self.test[car_fol_id][0]
+
+            self.max_steps = ref_traj.shape[0]
+
+            init_spacing = ref_traj[0, 0]
+            init_spacing_agents = np.ones(self.num_agents+1) * init_spacing
+            init_spacing_agents = np.cumsum(init_spacing_agents)
+
+            leader_v = ref_traj[0, 3]
+            follower_v = ref_traj[0, 1]
+
+            self.virtual_leader.reset(force_x=init_spacing_agents[-1], force_v=leader_v, ref_traj=ref_traj)
+
+            for i in range(self.num_agents):
+                self.agents[i].reset(force_x=init_spacing_agents[init_spacing_agents.shape[0]-2-i], force_v=follower_v)
+        else:
+            self.virtual_leader.reset()
+            for i in range(self.num_agents):
+                self.agents[i].reset()
 
         # obs_n = []
         # for i in range(self.num_agents):
