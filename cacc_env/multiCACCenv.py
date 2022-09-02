@@ -297,13 +297,13 @@ class multiCACC(gym.Env):
                 self.is_collision = True
 
         for i in range(self.num_agents):
-            # idm_acc = self.agents[i].get_idm_acc()
+            idm_acc = self.agents[i].get_idm_acc()
             # idm_acc = self.agents[i].get_eidm_acc()
 
             adj = float(self.action_normalizer.denormalize(action_n[i]))
 
-            # acc = idm_acc + adj
-            acc = adj
+            acc = idm_acc + adj
+            #acc = adj
             # acc_cah = self.agents[i].get_acc_cah()
             acc = self.clip_acc(acc, lowerbound=self.acc_bound[0], upperbound=self.acc_bound[1])
 
