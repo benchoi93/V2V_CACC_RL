@@ -19,7 +19,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', default='train', type=str)  # mode = 'train' or 'test'
+    parser.add_argument('--mode', default='test', type=str)  # mode = 'train' or 'test'
     parser.add_argument('--tau', default=0.005, type=float)  # target smoothing coefficient
     parser.add_argument('--target_update_interval', default=1, type=int)
     parser.add_argument('--test_iteration', default=10, type=int)
@@ -35,8 +35,8 @@ def parse_args():
     parser.add_argument('--sample_frequency', default=2000, type=int)
     parser.add_argument('--render', action="store_true", default=True)  # show UI or not
     parser.add_argument('--log_interval', default=50, type=int)
-    parser.add_argument('--load', default=False, type=bool)  # load model
-    parser.add_argument('--render_interval', default=50, type=int)  # after render_interval, the env.render() will work
+    parser.add_argument('--load', default=True, type=bool)  # load model
+    parser.add_argument('--render_interval', default=5, type=int)  # after render_interval, the env.render() will work
     parser.add_argument('--exploration_noise', default=0.05, type=float)
     parser.add_argument('--max_episode', default=100000, type=int)  # num of games
     parser.add_argument('--print_log', default=5, type=int)
@@ -57,7 +57,7 @@ def parse_args():
     parser.add_argument("--enable-communication", default=False, action='store_true')
     parser.add_argument("--episode_length", default=1100, type=int)
 
-    parser.add_argument("--num-agents", default=10, type=int)
+    parser.add_argument("--num-agents", default=20, type=int)
     parser.add_argument("--init_spacing", default=70, type=float)
     parser.add_argument("--init_speed", default=30, type=float)
     parser.add_argument("--max-speed", default=120 / 3.6, type=float)
@@ -314,8 +314,8 @@ if __name__ == "__main__":
         if len(exst_run_nums) == 0:
             curr_run = 'run1'
         else:
-            #curr_run = 'run10900'
-            curr_run = 'run%i' % (max(exst_run_nums) + 1)
+            curr_run = 'run13000'
+            #curr_run = 'run%i' % (max(exst_run_nums) + 1)
     directory = model_dir / curr_run / 'logs'
     directory.mkdir(parents=True, exist_ok=True)
     # pickle args
