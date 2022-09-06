@@ -100,7 +100,7 @@ class ActorGraphPolicy(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold,
                  td, bu, num_processes):
         super(ActorGraphPolicy, self).__init__()
-        self.num_limbs = 10
+        self.num_limbs = 20
         self.msg_down = [None] * self.num_limbs
         self.msg_up = [None] * self.num_limbs
         self.action = [None] * self.num_limbs
@@ -314,7 +314,7 @@ class ActorGraphPolicy(nn.Module):
             if not (self.bu and not self.td):
                 for i in range(1, self.num_limbs):
                     delattr(self, "actor" + str(i).zfill(3))
-        self.num_limbs = 10
+        self.num_limbs = 20
         self.msg_down = [0] * self.num_limbs
         self.msg_up = [0] * self.num_limbs
         self.action = [0] * self.num_limbs

@@ -303,8 +303,8 @@ class multiCACC(gym.Env):
 
             adj = float(self.action_normalizer.denormalize(action_n[i]))
 
-            #acc = idm_acc + adj
-            acc = idm_acc
+            acc = idm_acc + adj
+            #acc = idm_acc
             # acc_cah = self.agents[i].get_acc_cah()
             acc = self.clip_acc(acc, lowerbound=self.acc_bound[0], upperbound=self.acc_bound[1])
 
@@ -334,13 +334,13 @@ class multiCACC(gym.Env):
 
         return obs_n, reward_n, done_n, info_n
 
-    def reset(self, mode="test"):
+    def reset(self, mode="train"):
         self._step_count = 0
 
         if self.ngsim:
             if mode == "train":
-                #car_fol_id = random.randint(0, self.train_num - 1)
-                car_fol_id = self.trj_count
+                car_fol_id = random.randint(0, self.train_num - 1)
+                #car_fol_id = self.trj_count
                 ref_traj = self.train[car_fol_id][0]
             elif mode == "test":
                 #car_fol_id = random.randint(0, self.test_num - 1)

@@ -179,8 +179,8 @@ class TD3(object):
         # print("====================================")
 
     def load(self):
-        self.actor.load_state_dict(torch.load(self.directory / 'actor_10agents.pth'))
-        self.critic.load_state_dict(torch.load(self.directory/'critic_10agents.pth'))
+        self.actor.load_state_dict(torch.load(self.directory / 'actor_300.pth'))
+        self.critic.load_state_dict(torch.load(self.directory/'critic_300.pth'))
         print("====================================")
         print("model has been loaded...")
         print("====================================")

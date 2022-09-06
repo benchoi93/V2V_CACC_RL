@@ -142,7 +142,7 @@ class CriticGraphPolicy(nn.Module):
 
     def __init__(self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_children, disable_fold, td, bu):
         super(CriticGraphPolicy, self).__init__()
-        self.num_limbs = 10
+        self.num_limbs = 20
 
         self.x1 = [None] * self.num_limbs
         self.x2 = [None] * self.num_limbs
