@@ -23,16 +23,18 @@ class TD3(object):
     #     self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
     #     self.critic_target = Critic(state_dim, action_dim, hidden_dim).to(device)
     def __init__(self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold,
-                 td, bu, directory, device, args):
+                 td, bu, directory, device, mode, args):
         self.actor = ActorGraphPolicy(state_dim, action_dim, hidden_dim,
                                       msg_dim, batch_size,
                                       max_action, max_children,
                                       disable_fold, td, bu, args.num_processes).to(device)
 
+
         self.actor_target = ActorGraphPolicy(state_dim, action_dim, hidden_dim,
                                              msg_dim, batch_size,
                                              max_action, max_children,
                                              disable_fold, td, bu, args.num_processes).to(device)
+
 
         self.critic = CriticGraphPolicy(state_dim, action_dim, hidden_dim,
                                         msg_dim, batch_size,
@@ -43,6 +45,7 @@ class TD3(object):
                                                msg_dim, batch_size,
                                                max_children,
                                                disable_fold, td, bu).to(device)
+
         # self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
         # self.critic_target = Critic(state_dim, action_dim, hidden_dim).to(device)
         self.actor_target.load_state_dict(self.actor.state_dict())
@@ -57,6 +60,7 @@ class TD3(object):
         self.num_training = 0
 
         self.args = args
+        self.mode = mode
         self.device = device
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -64,6 +68,17 @@ class TD3(object):
         self.max_action = max_action
 
         self._cnt = 0
+
+        if self.mode == "train":
+            self.actor.train(mode=True)
+            self.actor_target.train(mode=True)
+            self.critic.train(mode=True)
+            self.critic_target.train(mode=True)
+        else:
+            self.actor.train(mode=False)
+            self.actor_target.train(mode=False)
+            self.critic.train(mode=False)
+            self.critic_target.train(mode=False)
 
     def select_action(self, state):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
@@ -164,8 +179,9 @@ class TD3(object):
         # print("====================================")
 
     def load(self):
-        self.actor.load_state_dict(torch.load(self.directory + 'actor.pth'))
-        self.critic.load_state_dict(torch.load(self.directory + 'critic.pth'))
+        self.actor.load_state_dict(torch.load(self.directory / 'actor_300.pth'))
+        self.critic.load_state_dict(torch.load(self.directory/'critic_300.pth'))
         print("====================================")
         print("model has been loaded...")
         print("====================================")
+

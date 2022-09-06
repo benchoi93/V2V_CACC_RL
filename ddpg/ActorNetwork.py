@@ -329,3 +329,4 @@ class ActorGraphPolicy(nn.Module):
             if not self.disable_fold:
                 for i in range(self.num_limbs):
                     setattr(self, "actor" + str(i).zfill(3), self.actor[i])
+

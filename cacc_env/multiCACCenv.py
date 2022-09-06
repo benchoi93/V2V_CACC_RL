@@ -73,6 +73,7 @@ class multiCACC(gym.Env):
         self.coefs = coefs
 
         self._step_count = 0
+        self.trj_count = 0
         self.viewer = None
         # state of the environment
         # ego_position, ego_speed, ego_acceleration, spacing, relative_speed
@@ -297,13 +298,13 @@ class multiCACC(gym.Env):
                 self.is_collision = True
 
         for i in range(self.num_agents):
-            # idm_acc = self.agents[i].get_idm_acc()
+            idm_acc = self.agents[i].get_idm_acc()
             # idm_acc = self.agents[i].get_eidm_acc()
 
             adj = float(self.action_normalizer.denormalize(action_n[i]))
 
-            # acc = idm_acc + adj
-            acc = adj
+            acc = idm_acc + adj
+            #acc = idm_acc
             # acc_cah = self.agents[i].get_acc_cah()
             acc = self.clip_acc(acc, lowerbound=self.acc_bound[0], upperbound=self.acc_bound[1])
 
@@ -339,9 +340,11 @@ class multiCACC(gym.Env):
         if self.ngsim:
             if mode == "train":
                 car_fol_id = random.randint(0, self.train_num - 1)
+                #car_fol_id = self.trj_count
                 ref_traj = self.train[car_fol_id][0]
             elif mode == "test":
-                car_fol_id = random.randint(0, self.test_num - 1)
+                #car_fol_id = random.randint(0, self.test_num - 1)
+                car_fol_id = self.trj_count
                 ref_traj = self.test[car_fol_id][0]
 
             self.max_steps = ref_traj.shape[0]
@@ -374,6 +377,7 @@ class multiCACC(gym.Env):
 
         obs_n = self.get_state().flatten()
         self.is_collision = False
+        self.trj_count +=1
         return obs_n
 
     def render(self, mode="human", display=True, save=False, viewer=False, save_path=None):

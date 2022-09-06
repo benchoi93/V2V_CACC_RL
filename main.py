@@ -1,5 +1,6 @@
 import time
 import argparse
+import matplotlib.pyplot as plt
 import torch
 import numpy as np
 import gym
@@ -33,10 +34,10 @@ def parse_args():
     # optional parameters
 
     parser.add_argument('--sample_frequency', default=2000, type=int)
-    parser.add_argument('--render', action="store_true", default=False)  # show UI or not
+    parser.add_argument('--render', action="store_true", default=True)  # show UI or not
     parser.add_argument('--log_interval', default=50, type=int)
     parser.add_argument('--load', default=False, type=bool)  # load model
-    parser.add_argument('--render_interval', default=100, type=int)  # after render_interval, the env.render() will work
+    parser.add_argument('--render_interval', default=50, type=int)  # after render_interval, the env.render() will work
     parser.add_argument('--exploration_noise', default=0.05, type=float)
     parser.add_argument('--max_episode', default=100000, type=int)  # num of games
     parser.add_argument('--print_log', default=5, type=int)
@@ -53,7 +54,7 @@ def parse_args():
     parser.add_argument("--ss-reward-coef", default=1, type=float)
     parser.add_argument("--energy-reward-coef", default=0.001, type=float)
 
-    parser.add_argument("--shared-reward", default=False, action='store_true')
+    parser.add_argument("--shared-reward", default=True, action='store_true')
     parser.add_argument("--enable-communication", default=False, action='store_true')
     parser.add_argument("--episode_length", default=1100, type=int)
 
@@ -67,11 +68,12 @@ def parse_args():
     parser.add_argument("--num_processes", default=2, type=int)
     # parser.add_argument("--max_steps", default=1000, type=int)
 
-    parser.add_argument("--td", default=False, action="store_true")
-    parser.add_argument("--bu", default=False, action="store_true")
+    parser.add_argument("--td", default=True, action="store_true")
+    parser.add_argument("--bu", default=True, action="store_true")
+    parser.add_argument('--IDM_ONLY', default=False, action="store_true") # IDM: "ONLY" means only IDM is used in the policy.
     parser.add_argument("--model", choices=["TD3", "DDPG"], default="TD3")
 
-    parser.add_argument("--ngsim", default=False, action="store_true")
+    parser.add_argument("--ngsim", default=True, action="store_true")
 
     args = parser.parse_args()
 
@@ -103,6 +105,7 @@ def main(args, device, directory):
                   bu=args.bu,
                   directory=directory,
                   device=device,
+                  mode = args.mode,
                   args=args)
     # (self, state_dim, action_dim, hidden_dim, msg_dim, batch_size, max_action, max_children, disable_fold, td, bu, device, directory, args):
     ep_r = 0
@@ -155,11 +158,17 @@ def main(args, device, directory):
             # for k in range(args.num_processes):
 
             # else:
-            noise = np.random.normal(0, args.exploration_noise, size=action.shape)
-            noise[0, :] = 0
-            action = (action + noise).clip(env.action_space.low, env.action_space.high)
+            if args.mode == "train":
+                noise = np.random.normal(0, args.exploration_noise, size=action.shape)
+                noise[0, :] = 0
+                action = (action + noise).clip(env.action_space.low, env.action_space.high)
+            else:
+                action = action.clip(env.action_space.low, env.action_space.high)
 
             if i == 0:
+                action = np.zeros_like(action)
+
+            if args.IDM_ONLY:
                 action = np.zeros_like(action)
 
             next_state, reward, done, info = env.step(action)
@@ -188,12 +197,14 @@ def main(args, device, directory):
             total_max_reward_list = [x+max_reward[i] for i, x in enumerate(total_max_reward_list)]
 
             if any(done_list):
-                if args.render and i % args.render_interval == 0:
+                if args.render :
+                #if args.render:
                     # figs = env.render(display=True, save=True)
                     for k in range(len(done_list)):
                         if done_list[k]:
                             env.remotes[k].send(('render_out', None))
                             fig = env.remotes[k].recv()[0]
+                            #fig.savefig('fig/TD3_{}.png'.format((i*args.num_processes + k)//2))
                             agent.writer.add_figure('episode', fig, global_step=i*args.num_processes + k)
                             # env.reset()
 
@@ -245,7 +256,10 @@ def main(args, device, directory):
             agent.save()
 
         now = time.time()
-        agent.update()
+
+        if args.mode == "train":
+            agent.update()
+
         print(f"Update Time : {time.time() - now :.2f}")
         print("-----------------------------------------\n")
         # "Total T: %d Episode Num: %d Episode T: %d Reward: %f
@@ -310,6 +324,7 @@ if __name__ == "__main__":
         if len(exst_run_nums) == 0:
             curr_run = 'run1'
         else:
+            #curr_run = 'run15000'
             curr_run = 'run%i' % (max(exst_run_nums) + 1)
     directory = model_dir / curr_run / 'logs'
     directory.mkdir(parents=True, exist_ok=True)
